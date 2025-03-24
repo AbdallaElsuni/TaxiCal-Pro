@@ -460,8 +460,8 @@ class VariablesType(str, Enum):
 class TaxBase(str,Enum):
     CustomBase = "CustomBase"
 class TaxationType(str, Enum):
-    Progressive = "Progressive"
-    Flat = "Flat"
+    ProgressiveRate = "ProgressiveRate"
+    FlatRate = "FlatRate"
     FixedAmount = "FixedAmount"
 class TaxVariables(str, Enum):
     Configurations = "Configurations"
@@ -651,6 +651,14 @@ class AGIType(str, Enum):
     StateAGI = "StateAGI"
     CityAGI = "CityAGI"
     CustomAGI = "CustomAGI"
+class Preference(str, Enum):
+    TaxPreference = "TaxPreference"
+class TaxPreference(str, Enum):
+    PreferredDeductionType = "PreferredDeductionType"
+class PreferredDeductionType(str, Enum):
+    PreferStandardized = "PreferStandardized"
+    PreferItemized = "PreferItemized"
+    PreferAuto = "PreferAuto"
 all_enums = [Currency,
              PaymentStatus,
              MaritalStatus,
@@ -688,7 +696,7 @@ standard_variables = {
             TaxVariables.Configurations: {
                 Configurations.TaxNameType: TaxNameType.StandardName,
                 Configurations.TaxName: StandardTaxName.FederalIncomeTax,
-                Configurations.TaxationType: TaxationType.Progressive,
+                Configurations.TaxationType: TaxationType.ProgressiveRate,
                 Configurations.TaxBase: VPerson.VFederalFinalAGI,
                 Configurations.AdjustedIncomeSource: None,
             },
@@ -907,6 +915,11 @@ standard_variables = {
         },
     },
 }
+standard_user_preference = {
+    Preference.TaxPreference:{
+        TaxPreference.PreferredDeductionType: PreferredDeductionType.PreferAuto,
+    },
+}
 california_variables = {
     Variables.Configurations: {
         Configurations.VerifierConfigurations: {
@@ -922,7 +935,7 @@ california_variables = {
             TaxVariables.Configurations: {
                 Configurations.TaxNameType: TaxNameType.StandardName,
                 Configurations.TaxName: StandardTaxName.StateIncomeTax,
-                Configurations.TaxationType: TaxationType.Progressive,
+                Configurations.TaxationType: TaxationType.ProgressiveRate,
                 Configurations.TaxBase: VPerson.VStateFinalAGI,
                 Configurations.AdjustedIncomeSource: AdjustedIncomeSource.FromState,
             },
@@ -1166,7 +1179,92 @@ vperson_to_person_attributes = {
         "default value": Money()
     }
 }
-def vperson_to_person_attribute(vperson, person, converter):
+
+class Person:
+    def __init__(self, first_name:str="", last_name:str="", marital_status:MaritalStatus=MaritalStatus.UnSpecified, age:int=0, income:Money=Money(Decimal("0")), state:State=State.UnSpecifiedState,
+                 attributes=None, variables_index=None, preference_settings=None):
+        if attributes is None:
+            attributes = {}
+        if variables_index is None:
+            variables_index = default_variables_index
+        if preference_settings is None:
+            preference_settings = standard_user_preference
+        self.first = first_name
+        self.last = last_name
+        self.status = marital_status
+        self.age = age
+        self.income = income
+        self.state = state
+        self.variables_index = variables_index
+        self.federal_variables = self.variables_index[LocalIndex.FederalVariablesIndex]
+        self.state_variables = self.variables_index[LocalIndex.StatesVariablesIndex]
+        self.city_variables = self.variables_index[LocalIndex.CitiesVariablesIndex]
+        self.municipal_variables = self.variables_index[LocalIndex.MunicipalitiesVariablesIndex]
+        self.preference = preference_settings
+        self.slot0 = None
+        self.slot1 = None
+        self.slot2 = None
+        viable_optional_attributes = {
+            "total_itemized": Money,  # Always present
+            "charitable_contributions": Money,
+            "public_cash_donations": Money,
+            "public_non_cash_donations": Money,
+            "private_cash_donations": Money,
+            "public_capital_gains_donations": Money,
+            "private_capital_gains_donations": Money,
+            "gambling_losses": Money,
+            "alimony_paid": Money,
+            "retirement_contributions": Money,
+            "health_insurance_premiums": Money,
+            "total_debt_based_investment_earnings": Money,
+            "medical_expenses": Liability,
+            "childcare_expenses": Liability,
+            "job_expenses": Liability,
+            "education_expenses": Liability,
+            "student_loan_interest": Liability,
+            "mortgage_interest": Liability,
+            "total_investment_expense": Liability,
+            "investment_interest_expense": Liability,
+            "business_expenses": Liability,
+            "rental_expenses": Liability,
+            "moving_expenses": Liability,  # Limited eligibility under current laws
+            "property_taxes": Tax,
+            "SALT": Tax,
+        }
+        for key, its_value in attributes.items():
+            if key in viable_optional_attributes and type(its_value) == viable_optional_attributes[key]:
+                setattr(self, key, its_value)
+    @property
+    def federal_standardized_deductions(self):
+        return calculate_tax_benefits_when_standardized(self, self.federal_variables)
+    @property
+    def federal_itemized_deductions(self):
+        return calculate_tax_benefits_when_itemizing(self, self.federal_variables)
+    @property
+    def federal_deductions(self):
+        preference = self.preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType]
+        if preference == PreferredDeductionType.PreferAuto:
+            return max(self.federal_standardized_deductions, self.federal_itemized_deductions)
+        elif preference == PreferredDeductionType.PreferStandardized:
+            return self.federal_standardized_deductions
+        elif preference == PreferredDeductionType.PreferItemized:
+            return self.federal_itemized_deductions
+    @property
+    def federal_base_agi(self):
+        # noinspection PyTypeChecker
+        items = self.federal_variables[Variables.TaxBenefits][TaxBenefits.Deduction][Deduction.Itemization]
+        pre_base_agi_itemization = calculate_pre_base_agi_itemization(items, self, vperson_to_person_attributes)
+        if self.income >= pre_base_agi_itemization:
+            return self.income - pre_base_agi_itemization
+        else:
+            return Money()
+    @property
+    def federal_final_agi(self):
+        if self.income >= self.federal_deductions:
+            return self.income - self.federal_deductions
+        else:
+            return Money()
+def vperson_to_person_attribute(vperson, person:Person, converter):
     if isinstance(vperson, VPerson):
         if vperson in converter:
             attribute_name = converter[vperson]["attribute name"]
@@ -1174,21 +1272,21 @@ def vperson_to_person_attribute(vperson, person, converter):
                 return getattr(person, attribute_name)
             else:
                 return converter[vperson]["default value"]
-def vperson_dictionary_to_person_attribute(variables:dict, person, converter):
+def vperson_dictionary_to_person_attribute(variables:dict, person:Person, converter):
     for key, its_value in variables.items():
         if isinstance(its_value, VPerson):
             variables[key] = vperson_to_person_attribute(its_value, person, converter)
         elif isinstance(its_value, dict):
             variables[key] = vperson_dictionary_to_person_attribute(its_value, person, converter)
     return variables
-def apply_raw_deductibles(dictionary:dict, person, converter):
+def apply_raw_deductibles(dictionary:dict, person:Person, converter):
     for key, its_value in dictionary.items():
         if isinstance(its_value, dict):
             apply_raw_deductibles(its_value, person, converter)
         elif key == ItemItemization.DeductibleValue:
             dictionary[key] = vperson_to_person_attribute(its_value, person, converter)
     return dictionary
-def calculate_pre_base_agi_itemization(items:dict, person, converter=None):
+def calculate_pre_base_agi_itemization(items:dict, person:Person, converter=None):
     if converter is None:
         converter = vperson_to_person_attributes
     base_agi_dependent_indicators = [VPerson.VFederalBaseAGI, VPerson.VCurrentBaseAGI, VPerson.VStateBaseAGI, VPerson.VCustomBase]
@@ -1211,7 +1309,7 @@ def calculate_pre_base_agi_itemization(items:dict, person, converter=None):
                 total_received = ledger[receiving_code]
                 accumulated_from_receivers += calculate_item_directly(item, person, converter, True, total_received)
     return accumulated_directs+accumulated_from_receivers
-def calculate_post_base_agi_itemization(items:dict, person, converter):
+def calculate_post_base_agi_itemization(items:dict, person:Person, converter):
     accumulated_directs = Money()
     accumulated_from_receivers = Money()
     ledger = {}
@@ -1229,7 +1327,7 @@ def calculate_post_base_agi_itemization(items:dict, person, converter):
             total_received = ledger[receiving_code]
             accumulated_from_receivers += calculate_item_directly(item, person, converter, True, total_received)
     return accumulated_directs + accumulated_from_receivers
-def calculate_item_directly(item:dict, person, converter, receiver=False, total_received=None):
+def calculate_item_directly(item:dict, person:Person, converter, receiver=False, total_received=None):
     if ItemItemization.ItemizationCaps in item:
         caps = calculate_caps(item[ItemItemization.ItemizationCaps], person, converter)
         upper_limits = caps[0]
@@ -1273,7 +1371,7 @@ def calculate_cap(cap:dict, person, converter):
         cap_value = cap[Values.FixedValue]
     capping_method = cap[ItemItemization.LimitType]
     return cap_value, capping_method
-def calculate_smart_values(a, b, operation, person, converter):
+def calculate_smart_values(a, b, operation, person:Person, converter):
     if isinstance(a, dict):
         a = calculate_smart_values(a[Values.SmartValueA], a[Values.SmartValueB], a[Values.InterValuesOperation], person, converter)
     elif isinstance(a, VPerson):
@@ -1298,13 +1396,19 @@ def calculate_smart_values(a, b, operation, person, converter):
     else:
         raise TypeError
     return results
-def calculate_tax_benefits(person, variables, converter):
+def calculate_tax_benefits(person:Person, variables, converter):
     standard_deduction = calculate_tax_benefits_when_standardized(person, variables)
-    itemized = calculate_post_base_agi_itemization(person, variables, converter)
-    if standard_deduction >= itemized:
+    itemized = calculate_post_base_agi_itemization(variables,person ,converter)
+    preference = person.preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType]
+    if preference == PreferredDeductionType.PreferStandardized:
         return standard_deduction, Deduction.StandardDeduction
-    else:
+    elif preference == PreferredDeductionType.PreferItemized:
         return itemized, Deduction.ItemizedDeduction
+    elif preference == PreferredDeductionType.PreferAuto:
+        if standard_deduction >= itemized:
+            return standard_deduction, Deduction.StandardDeduction
+        else:
+            return itemized, Deduction.ItemizedDeduction
 def calculate_exemptions(person, variables):
     return variables[Variables.TaxBenefits][TaxBenefits.Exemption][person.status]
 def calculate_tax_benefits_when_standardized(person, variables):
@@ -1318,84 +1422,32 @@ def calculate_tax_benefits_when_itemizing(person, variables, converter=None):
     exemptions = calculate_exemptions(person, variables)
     itemizations = calculate_post_base_agi_itemization(items, person, converter)
     return exemptions + itemizations
-def calculate_tax():
-    pass
-class Person:
-    def __init__(self, first_name:str="", last_name:str="", marital_status:MaritalStatus=MaritalStatus.UnSpecified, age:int=0, income:Money=Money(Decimal("0")), state:State=State.UnSpecifiedState,
-                 attributes=None, variables_index=None):
-        if attributes is None:
-            attributes = {}
-        if variables_index is None:
-            variables_index = default_variables_index
-        self.first = first_name
-        self.last = last_name
-        self.status = marital_status
-        self.age = age
-        self.income = income
-        self.state = state
-        self.variables_index = variables_index
-        self.federal_variables = self.variables_index[LocalIndex.FederalVariablesIndex]
-        self.state_variables = self.variables_index[LocalIndex.StatesVariablesIndex]
-        self.city_variables = self.variables_index[LocalIndex.CitiesVariablesIndex]
-        self.municipal_variables = self.variables_index[LocalIndex.MunicipalitiesVariablesIndex]
-        self.slot0 = None
-        self.slot1 = None
-        self.slot2 = None
-        viable_optional_attributes = {
-            "total_itemized": Money,  # Always present
-            "charitable_contributions": Money,
-            "public_cash_donations": Money,
-            "public_non_cash_donations": Money,
-            "private_cash_donations": Money,
-            "public_capital_gains_donations": Money,
-            "private_capital_gains_donations": Money,
-            "gambling_losses": Money,
-            "alimony_paid": Money,
-            "retirement_contributions": Money,
-            "health_insurance_premiums": Money,
-            "total_debt_based_investment_earnings": Money,
-            "medical_expenses": Liability,
-            "childcare_expenses": Liability,
-            "job_expenses": Liability,
-            "education_expenses": Liability,
-            "student_loan_interest": Liability,
-            "mortgage_interest": Liability,
-            "total_investment_expense": Liability,
-            "investment_interest_expense": Liability,
-            "business_expenses": Liability,
-            "rental_expenses": Liability,
-            "moving_expenses": Liability,  # Limited eligibility under current laws
-            "property_taxes": Tax,
-            "SALT": Tax,
-        }
-        for key, its_value in attributes.items():
-            if key in viable_optional_attributes and type(its_value) == viable_optional_attributes[key]:
-                setattr(self, key, its_value)
-    @property
-    def federal_standardized_deductions(self):
-        return calculate_tax_benefits_when_standardized(self, self.federal_variables)
-    @property
-    def federal_itemized_deductions(self):
-        return calculate_tax_benefits_when_itemizing(self, self.federal_variables)
-    @property
-    def federal_deductions(self):
-        return max(self.federal_standardized_deductions, self.federal_itemized_deductions)
-    @property
-    def federal_base_agi(self):
-        # noinspection PyTypeChecker
-        items = self.federal_variables[Variables.TaxBenefits][TaxBenefits.Deduction][Deduction.Itemization]
-        pre_base_agi_itemization = calculate_pre_base_agi_itemization(items, self, vperson_to_person_attributes)
-        if self.income >= pre_base_agi_itemization:
-            return self.income - pre_base_agi_itemization
+def calculate_tax(tax:dict):
+    taxation_type = tax[TaxVariables.Configurations][Configurations.TaxationType]
+    if taxation_type == TaxationType.ProgressiveRate:
+        pass
+    elif taxation_type == TaxationType.FlatRate:
+        pass
+    elif taxation_type == TaxationType.FixedAmount:
+        pass
+def find_bracket(agi, brackets:dict, highest_bracket:int):
+    bracket = highest_bracket
+    while bracket > 1:
+        if agi > brackets[bracket-1]:
+            break
         else:
-            return Money()
-    @property
-    def federal_final_agi(self):
-        if self.income >= self.federal_deductions:
-            return self.income - self.federal_deductions
-        else:
-            return Money()
-
+            bracket -= 1
+    return bracket
+def apply_rate(brackets ,bracket, rates, agi):
+    accumulated_tax = Tax(Decimal("0"))
+    order = bracket
+    while order > 1:
+        portion_to_tax = (agi-brackets[order-1])
+        accumulated_tax += portion_to_tax*rates[order]
+        agi = brackets[order-1]
+        order-=1
+    accumulated_tax += agi*rates[order]
+    return accumulated_tax
 
 
 
@@ -1497,4 +1549,5 @@ nested_smart_value = {
     },
     Values.InterValuesOperation: InterValuesOperation.Division
 }
+print(p.federal_final_agi)
 
