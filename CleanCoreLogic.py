@@ -1004,6 +1004,7 @@ california_variables = {
                 Configurations.TaxationType: TaxationType.ProgressiveRate,
                 Configurations.TaxBase: VPerson.VStateFinalAGI,
                 Configurations.AdjustedIncomeSource: AdjustedIncomeSource.FromState,
+                Configurations.HaveCap: False,
             },
             TaxVariables.BracketCeilings: {
                 MaritalStatus.Single: {
