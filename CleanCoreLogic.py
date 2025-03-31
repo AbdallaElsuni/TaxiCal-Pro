@@ -4,7 +4,7 @@ from enum import Enum
 from dateutil.relativedelta import relativedelta
 
 from TaxiCal.LookUpInNestedDictionary import lookup_values_in_nested
-
+from TaxiCal.NestedDictionariesReader import nested_dictionary_reader
 
 
 class Currency(str, Enum):
@@ -451,6 +451,10 @@ class Configurations(str, Enum):
     VerifierConfigurations = "VerifierConfigurations"
     AdjustedIncomeSource = "AdjustedIncomeSource"
     LastUpdated = "LastUpdated"
+    HighestBracketCeiling = "HighestBracketCeiling"
+    TheFlatRate = "TheFlatRate"
+    TheFixedAmount = "TheFixedAmount"
+    HaveCap = "HaveCap"
 class VariablesType(str, Enum):
     FederalVariables = "FederalVariables"
     StateVariables = "StateVariables"
@@ -469,9 +473,19 @@ class TaxVariables(str, Enum):
     Rates = "Rates"
     OtherTaxes = "OtherTaxes"
     TaxBenefits = "TaxBenefits"
+    TaxCaps = "TaxCaps"
 class TaxNameType(str, Enum):
     StandardName = "StandardName"
     CustomName = "CustomName"
+class TaxCap(str, Enum):
+    TaxLimitType = "TaxLimitType"
+    TaxCapType = "TaxCapType"
+class TaxLimitType(str, Enum):
+    UpperLimitTaxCap = "UpperLimitTaxCap"
+    LowerLimitTaxCap = "LowerLimitTaxCap"
+class TaxCapType(str, Enum):
+    TaxFixedCap = "TaxFixedCap"
+    TaxDynamicCap = "TaxDynamicCap"
 class TaxBenefits(str, Enum):
     Deduction = "Deduction"
     Exemption = "Exemption"
@@ -519,6 +533,7 @@ class ItemItemization(str, Enum):
     ReceiverCode = "ReceiverCode"
     ReceivingCode = "ReceivingCode"
     HaveBaseAGIDependentFeeders = "HaveBaseAGIDependentFeeders"
+    FeederSpecificCode = "FeederSpecificCode"
 class ItemItemizationType(str, Enum):
     Direct = "Direct"
     Feeder = "Feeder"
@@ -659,6 +674,14 @@ class PreferredDeductionType(str, Enum):
     PreferStandardized = "PreferStandardized"
     PreferItemized = "PreferItemized"
     PreferAuto = "PreferAuto"
+class Jurisdiction(str, Enum):
+    Federal = "Federal"
+    State = "State"
+    City = "City"
+    Local = "Local"
+    County = "County"
+    Municipal = "Municipal"
+    GlobalSettings = "GlobalSettings"
 all_enums = [Currency,
              PaymentStatus,
              MaritalStatus,
@@ -698,7 +721,11 @@ standard_variables = {
                 Configurations.TaxName: StandardTaxName.FederalIncomeTax,
                 Configurations.TaxationType: TaxationType.ProgressiveRate,
                 Configurations.TaxBase: VPerson.VFederalFinalAGI,
-                Configurations.AdjustedIncomeSource: None,
+                Configurations.TheFlatRate: Decimal("0.05"),
+                Configurations.HighestBracketCeiling: 7,
+                Configurations.TheFixedAmount: Money(Decimal("7987654")),
+                Configurations.HaveCap: False,
+                Configurations.AdjustedIncomeSource: None, # Redundant #ForRemoval
             },
             TaxVariables.BracketCeilings: {
                 MaritalStatus.Single: {
@@ -737,6 +764,32 @@ standard_variables = {
                 5: Decimal("0.32"),
                 6: Decimal("0.35"),
                 7: Decimal("0.37"),
+            },
+        },
+        2: {
+            TaxVariables.Configurations: {
+                Configurations.TaxNameType: TaxNameType.CustomName,
+                Configurations.TaxName: "The Tomato Tax",
+                Configurations.TaxationType: TaxationType.FixedAmount,
+                Configurations.TheFixedAmount: Money(Decimal("15000")),
+                Configurations.HaveCap: False
+            },
+        },
+        3: {
+            TaxVariables.Configurations: {
+                Configurations.TaxNameType : TaxNameType.CustomName,
+                Configurations.TaxName: "Moda Fag",
+                Configurations.TaxationType: TaxationType.FlatRate,
+                Configurations.TaxBase: VPerson.VFederalFinalAGI,
+                Configurations.TheFlatRate: Decimal("0.01"),
+                Configurations.HaveCap: True,
+            },
+            TaxVariables.TaxCaps: {
+                1: {
+                    TaxCap.TaxLimitType: TaxLimitType.UpperLimitTaxCap,
+                    TaxCap.TaxCapType: TaxCapType.TaxFixedCap,
+                    Values.FixedValue: Money(Decimal("100000"))
+                },
             },
         },
     },
@@ -779,6 +832,7 @@ standard_variables = {
                     ItemItemization.DeductibleValue: VPerson.VPropertyTaxes,
                     ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
                     ItemItemization.ReceiverCode: "SALT",
+                    ItemItemization.FeederSpecificCode: 0,
                     ItemItemization.CapsAppliedCount: 0
                 },
                 Itemization.SALT: {
@@ -800,6 +854,7 @@ standard_variables = {
                     ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
                     ItemItemization.ReceiverCode: "Donations",
                     ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.FeederSpecificCode: 0,
                     ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
                     ItemItemization.ItemizationCaps: {
                         1: {
@@ -815,6 +870,7 @@ standard_variables = {
                     ItemItemization.DeductibleValue: VPerson.VPrivateCashDonations,
                     ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
                     ItemItemization.ReceiverCode: "Donations",
+                    ItemItemization.FeederSpecificCode: 1,
                     ItemItemization.CapsAppliedCount: 1,
                     ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
                     ItemItemization.ItemizationCaps: {
@@ -832,6 +888,7 @@ standard_variables = {
                     ItemItemization.DeductibleValue: VPerson.VPublicNonCashDonations,
                     ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
                     ItemItemization.ReceiverCode: "Donations",
+                    ItemItemization.FeederSpecificCode: 2,
                     ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
                     ItemItemization.ItemizationCaps: {
                         1: {
@@ -848,6 +905,7 @@ standard_variables = {
                     ItemItemization.DeductibleValue: VPerson.VPublicCapitalGainsDonations,
                     ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
                     ItemItemization.ReceiverCode: "Donations",
+                    ItemItemization.FeederSpecificCode: 3,
                     ItemItemization.CapsAppliedCount: 1,
                     ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
                     ItemItemization.ItemizationCaps: {
@@ -864,6 +922,7 @@ standard_variables = {
                     ItemItemization.DeductibleValue: VPerson.VPrivateCapitalGainsDonations,
                     ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
                     ItemItemization.ReceiverCode: "Donations",
+                    ItemItemization.FeederSpecificCode: 4,
                     ItemItemization.CapsAppliedCount: 1,
                     ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
                     ItemItemization.ItemizationCaps: {
@@ -917,7 +976,14 @@ standard_variables = {
 }
 standard_user_preference = {
     Preference.TaxPreference:{
-        TaxPreference.PreferredDeductionType: PreferredDeductionType.PreferAuto,
+        TaxPreference.PreferredDeductionType: {
+            Jurisdiction.Federal: PreferredDeductionType.PreferAuto,
+            Jurisdiction.State: PreferredDeductionType.PreferAuto,
+            Jurisdiction.County: PreferredDeductionType.PreferAuto,
+            Jurisdiction.Local: PreferredDeductionType.PreferAuto,
+            Jurisdiction.City: PreferredDeductionType.PreferAuto,
+            Jurisdiction.Municipal: PreferredDeductionType.PreferAuto,
+        },
     },
 }
 california_variables = {
@@ -1031,8 +1097,6 @@ california_variables = {
         },
     },
 }
-
-
 default_variables_index = {
     LocalIndex.FederalVariablesIndex: standard_variables,
     LocalIndex.StatesVariablesIndex: {
@@ -1047,6 +1111,14 @@ vperson_to_person_attributes = {
         "default value": Money()
     },
     VPerson.VFederalBaseAGI:{
+        "attribute name": "federal_base_agi",
+        "default value": Money()
+    },
+    VPerson.VStateFinalAGI: {
+        "attribute name": "federal_final_agi",
+        "default value": Money()
+    },
+    VPerson.VStateBaseAGI:{
         "attribute name": "federal_base_agi",
         "default value": Money()
     },
@@ -1196,10 +1268,6 @@ class Person:
         self.income = income
         self.state = state
         self.variables_index = variables_index
-        self.federal_variables = self.variables_index[LocalIndex.FederalVariablesIndex]
-        self.state_variables = self.variables_index[LocalIndex.StatesVariablesIndex]
-        self.city_variables = self.variables_index[LocalIndex.CitiesVariablesIndex]
-        self.municipal_variables = self.variables_index[LocalIndex.MunicipalitiesVariablesIndex]
         self.preference = preference_settings
         self.slot0 = None
         self.slot1 = None
@@ -1235,6 +1303,19 @@ class Person:
             if key in viable_optional_attributes and type(its_value) == viable_optional_attributes[key]:
                 setattr(self, key, its_value)
     @property
+    def federal_variables(self):
+        return self.variables_index[LocalIndex.FederalVariablesIndex]
+    @property
+    def state_variables(self):
+        # noinspection PyTypeChecker
+        return self.variables_index[LocalIndex.StatesVariablesIndex][self.state]
+    @property
+    def city_variables(self):
+        return self.variables_index[LocalIndex.CitiesVariablesIndex]
+    @property
+    def municipal_variables(self):
+        return self.variables_index[LocalIndex.MunicipalitiesVariablesIndex]
+    @property
     def federal_standardized_deductions(self):
         return calculate_tax_benefits_when_standardized(self, self.federal_variables)
     @property
@@ -1242,7 +1323,7 @@ class Person:
         return calculate_tax_benefits_when_itemizing(self, self.federal_variables)
     @property
     def federal_deductions(self):
-        preference = self.preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType]
+        preference = self.preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType][Jurisdiction.Federal]
         if preference == PreferredDeductionType.PreferAuto:
             return max(self.federal_standardized_deductions, self.federal_itemized_deductions)
         elif preference == PreferredDeductionType.PreferStandardized:
@@ -1262,6 +1343,42 @@ class Person:
     def federal_final_agi(self):
         if self.income >= self.federal_deductions:
             return self.income - self.federal_deductions
+        else:
+            return Money()
+
+    @property
+    def state_standardized_deductions(self):
+        return calculate_tax_benefits_when_standardized(self, self.state_variables)
+
+    @property
+    def state_itemized_deductions(self):
+        return calculate_tax_benefits_when_itemizing(self, self.state_variables)
+
+    @property
+    def state_deductions(self):
+        preference = self.preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType][
+            Jurisdiction.State]
+        if preference == PreferredDeductionType.PreferAuto:
+            return max(self.state_standardized_deductions, self.state_itemized_deductions)
+        elif preference == PreferredDeductionType.PreferStandardized:
+            return self.state_standardized_deductions
+        elif preference == PreferredDeductionType.PreferItemized:
+            return self.state_itemized_deductions
+
+    @property
+    def state_base_agi(self):
+        # noinspection PyTypeChecker
+        items = self.state_variables[Variables.TaxBenefits][TaxBenefits.Deduction][Deduction.Itemization]
+        pre_base_agi_itemization = calculate_pre_base_agi_itemization(items, self, vperson_to_person_attributes)
+        if self.income >= pre_base_agi_itemization:
+            return self.income - pre_base_agi_itemization
+        else:
+            return Money()
+
+    @property
+    def state_final_agi(self):
+        if self.income >= self.state_deductions:
+            return self.income - self.state_deductions
         else:
             return Money()
 def vperson_to_person_attribute(vperson, person:Person, converter):
@@ -1298,15 +1415,18 @@ def calculate_pre_base_agi_itemization(items:dict, person:Person, converter=None
             if item[ItemItemization.ItemItemizationType] == ItemItemizationType.Direct:
                 accumulated_directs += calculate_item_directly(item, person, converter)
             elif item[ItemItemization.ItemItemizationType] == ItemItemizationType.Feeder:
-                if ledger.get(item[ItemItemization.ReceiverCode]):
-                    ledger[item[ItemItemization.ReceiverCode]] += calculate_item_directly(item, person, converter)
+                receiver_code = item[ItemItemization.ReceiverCode]
+                feeder_specific_code = item[ItemItemization.FeederSpecificCode]
+                if ledger.get(receiver_code):
+                    ledger[receiver_code][feeder_specific_code] = calculate_item_directly(item, person, converter)
                 else:
-                    ledger[item[ItemItemization.ReceiverCode]] = calculate_item_directly(item, person, converter)
+                    ledger[receiver_code] = {}
+                    ledger[receiver_code][feeder_specific_code] = calculate_item_directly(item, person, converter)
     for item in items.values():
         if item[ItemItemization.ItemItemizationType] == ItemItemizationType.Receiver:
             if not item[ItemItemization.HaveBaseAGIDependentFeeders]:
                 receiving_code = item[ItemItemization.ReceivingCode]
-                total_received = ledger[receiving_code]
+                total_received = sum(ledger[receiving_code].values(), StandardFinancialUnit())
                 accumulated_from_receivers += calculate_item_directly(item, person, converter, True, total_received)
     return accumulated_directs+accumulated_from_receivers
 def calculate_post_base_agi_itemization(items:dict, person:Person, converter):
@@ -1317,14 +1437,17 @@ def calculate_post_base_agi_itemization(items:dict, person:Person, converter):
         if item[ItemItemization.ItemItemizationType] == ItemItemizationType.Direct:
             accumulated_directs += calculate_item_directly(item, person, converter)
         elif item[ItemItemization.ItemItemizationType] == ItemItemizationType.Feeder:
-            if ledger.get(item[ItemItemization.ReceiverCode]):
-                ledger[item[ItemItemization.ReceiverCode]] += calculate_item_directly(item, person, converter)
+            receiver_code = item[ItemItemization.ReceiverCode]
+            feeder_specific_code = item[ItemItemization.FeederSpecificCode]
+            if ledger.get(receiver_code):
+                ledger[receiver_code][feeder_specific_code] = calculate_item_directly(item, person, converter)
             else:
-                ledger[item[ItemItemization.ReceiverCode]] = calculate_item_directly(item, person, converter)
+                ledger[receiver_code] = {}
+                ledger[receiver_code][feeder_specific_code] = calculate_item_directly(item, person, converter)
     for item in items.values():
         if item[ItemItemization.ItemItemizationType] == ItemItemizationType.Receiver:
             receiving_code = item[ItemItemization.ReceivingCode]
-            total_received = ledger[receiving_code]
+            total_received = sum(ledger[receiving_code].values(), StandardFinancialUnit())
             accumulated_from_receivers += calculate_item_directly(item, person, converter, True, total_received)
     return accumulated_directs + accumulated_from_receivers
 def calculate_item_directly(item:dict, person:Person, converter, receiver=False, total_received=None):
@@ -1422,14 +1545,27 @@ def calculate_tax_benefits_when_itemizing(person, variables, converter=None):
     exemptions = calculate_exemptions(person, variables)
     itemizations = calculate_post_base_agi_itemization(items, person, converter)
     return exemptions + itemizations
-def calculate_tax(tax:dict):
+def calculate_tax(tax:dict, person:Person, converter:dict):
+    tax_value = Tax()
     taxation_type = tax[TaxVariables.Configurations][Configurations.TaxationType]
-    if taxation_type == TaxationType.ProgressiveRate:
-        pass
-    elif taxation_type == TaxationType.FlatRate:
-        pass
+    if taxation_type == TaxationType.ProgressiveRate or taxation_type == TaxationType.FlatRate:
+        tax_base = tax[TaxVariables.Configurations][Configurations.TaxBase]
+        agi = vperson_to_person_attribute(tax_base, person, converter)
+        if taxation_type == TaxationType.ProgressiveRate:
+            brackets = tax[TaxVariables.BracketCeilings][person.status]
+            highest_bracket = tax[TaxVariables.Configurations][Configurations.HighestBracketCeiling]
+            bracket = find_bracket(agi, brackets, highest_bracket)
+            rates = tax[TaxVariables.Rates]
+            tax_value = apply_rate(brackets, bracket, rates, agi)
+        else:
+            flat_rate = tax[TaxVariables.Configurations][Configurations.TheFlatRate]
+            tax_value = agi * flat_rate
     elif taxation_type == TaxationType.FixedAmount:
-        pass
+        tax_value = tax[TaxVariables.Configurations][Configurations.TheFixedAmount]
+    if tax[TaxVariables.Configurations][Configurations.HaveCap]:
+        caps = tax[TaxVariables.TaxCaps]
+        tax_value = adjust_tax_value_for_its_caps(tax_value, caps, person, converter)
+    return tax_value
 def find_bracket(agi, brackets:dict, highest_bracket:int):
     bracket = highest_bracket
     while bracket > 1:
@@ -1443,12 +1579,54 @@ def apply_rate(brackets ,bracket, rates, agi):
     order = bracket
     while order > 1:
         portion_to_tax = (agi-brackets[order-1])
+        # print(f'''Portion: {portion_to_tax}, rate:{rates[order]}, added tax:{portion_to_tax*rates[order]}''')
         accumulated_tax += portion_to_tax*rates[order]
         agi = brackets[order-1]
         order-=1
     accumulated_tax += agi*rates[order]
     return accumulated_tax
-
+def process_taxes(taxes:dict, person:Person, converter:dict):
+    for tax in taxes.values():
+        tax_name = str(tax[TaxVariables.Configurations][Configurations.TaxName]).replace("StandardTaxName.", "")
+        tax_value = calculate_tax(tax, person, converter)
+        print(f"Tax Name: {tax_name}, Tax Value: {tax_value}")
+def calculate_tax_cap(cap:dict, person, converter):
+    if cap[TaxCap.TaxCapType] == TaxCapType.TaxDynamicCap:
+        if cap.get(Values.DynamicValue):
+            cap_value =  vperson_to_person_attribute(cap[Values.DynamicValue], person, converter)
+        else:
+            cap_value = calculate_smart_values(cap[Values.SmartValueA], cap[Values.SmartValueB], cap[Values.InterValuesOperation], person, converter)
+    else:
+        cap_value = cap[Values.FixedValue]
+    capping_method = cap[TaxCap.TaxLimitType]
+    return cap_value, capping_method
+def calculate_tax_caps(caps:dict, person, converter):
+    upper_limits = []
+    lower_limits = []
+    for cap in caps.values():
+        cap_result = calculate_tax_cap(cap, person, converter)
+        if cap_result[1] == TaxLimitType.UpperLimitTaxCap:
+            upper_limits.append(cap_result[0])
+        elif cap_result[1] == TaxLimitType.LowerLimitTaxCap:
+            lower_limits.append(cap_result[0])
+    if not upper_limits:
+        upper_limits.append(Money(Decimal("Infinity")))
+    if not lower_limits:
+        lower_limits.append(Money())
+    return upper_limits, lower_limits
+def adjust_tax_value_for_its_caps(tax_value, caps:dict, person:Person, converter:dict):
+    processed_caps = calculate_tax_caps(caps, person, converter)
+    upper_limits = processed_caps[0]
+    lower_limits = processed_caps[1]
+    smallest_upper_limit = min(upper_limits)
+    greatest_lower_limit = max(lower_limits)
+    if tax_value >= greatest_lower_limit:
+        tax_value -= greatest_lower_limit
+        tax_value = min(tax_value, smallest_upper_limit)
+    else:
+        tax_value = Tax()
+    return tax_value
+some_taxes = standard_variables[Variables.Taxes]
 
 
 p = Person()
@@ -1549,5 +1727,16 @@ nested_smart_value = {
     },
     Values.InterValuesOperation: InterValuesOperation.Division
 }
+
 print(p.federal_final_agi)
+# noinspection PyTypeChecker
+process_taxes(standard_variables[Variables.Taxes], p, vperson_to_person_attributes)
+# p.state = State.California
+# print(p.state_deductions)
+# print(p.state_deductions)
+
+# print(getattr(p, "federal_final_agi"))
+
+
+# process_taxes(some_taxes, p, vperson_to_person_attributes)
 
