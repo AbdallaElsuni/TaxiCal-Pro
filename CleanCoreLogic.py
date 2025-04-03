@@ -1,12 +1,9 @@
 import decimal, datetime, sys
 from decimal import Decimal
-from enum import Enum
 from dateutil.relativedelta import relativedelta
 
-from TaxiCal.LookUpInNestedDictionary import lookup_values_in_nested
 from TaxiCal.NestedDictionariesReader import nested_dictionary_reader
-
-
+from TaxiCalCustomEnums import *
 class Currency(str, Enum):
     USD = "USD"
     EUR = "EUR"
@@ -28,6 +25,8 @@ class Currency(str, Enum):
     BRL = "BRL"
     ZAR = "ZAR"
     RUB = "RUB"
+    def __str__(self):
+        return self.name
 class PaymentStatus(str, Enum):
     Paid = "Paid"
     UnPaid = "UnPaid"
@@ -35,6 +34,15 @@ class PaymentStatus(str, Enum):
     NotSpecified = "NotSpecified"
     PartiallyPaid = "PartiallyPaid"
     InterestOnly = "InterestOnly"
+    def __str__(self):
+        return self.name
+class MaritalStatus(str, Enum):
+    Single = "Single"
+    MarriedNonJoint = "MarriedNonJoint"
+    MarriedJoint = "MarriedJoint"
+    UnSpecified = "UnSpecified"
+    def __str__(self):
+        return self.name
 class StandardFinancialUnit:
     def __init__(self, amount=Decimal("0"), currency=Currency.USD):
         if amount >= Decimal("0"):
@@ -299,75 +307,24 @@ class Liability(StandardFinancialUnit):
         self.status = PaymentStatus.Paid
 class Tax(Liability):
     pass
-class MaritalStatus(str, Enum):
-    Single = "Single"
-    MarriedNonJoint = "MarriedNonJoint"
-    MarriedJoint = "MarriedJoint"
-    UnSpecified = "UnSpecified"
-class State(str, Enum):
-    CityVariablesIndex = "CityVariablesHeader"
-    UnSpecifiedState = "UnSpecifiedState"
-    Alabama = "Alabama"
-    Alaska = "Alaska"
-    Arizona = "Arizona"
-    Arkansas = "Arkansas"
-    California = "California"
-    Colorado = "Colorado"
-    Connecticut = "Connecticut"
-    Delaware = "Delaware"
-    Florida = "Florida"
-    Georgia = "Georgia"
-    Hawaii = "Hawaii"
-    Idaho = "Idaho"
-    Illinois = "Illinois"
-    Indiana = "Indiana"
-    Iowa = "Iowa"
-    Kansas = "Kansas"
-    Kentucky = "Kentucky"
-    Louisiana = "Louisiana"
-    Maine = "Maine"
-    Maryland = "Maryland"
-    Massachusetts = "Massachusetts"
-    Michigan = "Michigan"
-    Minnesota = "Minnesota"
-    Mississippi = "Mississippi"
-    Missouri = "Missouri"
-    Montana = "Montana"
-    Nebraska = "Nebraska"
-    Nevada = "Nevada"
-    NewHampshire = "NewHampshire"
-    NewJersey = "NewJersey"
-    NewMexico = "NewMexico"
-    NewYork = "NewYork"
-    NorthCarolina = "NorthCarolina"
-    NorthDakota = "NorthDakota"
-    Ohio = "Ohio"
-    Oklahoma = "Oklahoma"
-    Oregon = "Oregon"
-    Pennsylvania = "Pennsylvania"
-    RhodeIsland = "RhodeIsland"
-    SouthCarolina = "SouthCarolina"
-    SouthDakota = "SouthDakota"
-    Tennessee = "Tennessee"
-    Texas = "Texas"
-    Utah = "Utah"
-    Vermont = "Vermont"
-    Virginia = "Virginia"
-    Washington = "Washington"
-    WestVirginia = "WestVirginia"
-    Wisconsin = "Wisconsin"
-    Wyoming = "Wyoming"
+from TaxiCal.LookUpInNestedDictionary import lookup_values_in_nested
 def str_to_object(string, enums_list:list):
+    financial_units_markers = {
+        "MoneyInCents ": Money,
+        "TaxInCents ": Tax,
+        "LiabilityInCents ": Liability,
+    }
     if isinstance(string, str):
-        if "MoneyInCents " in string:
-            stripped_string = string.replace("MoneyInCents ", "")
-            try:
-                return Money(Decimal(stripped_string))
-            except decimal.InvalidOperation:
-                pass
-            except  ValueError:
-                return "Negative Money crab."
-        elif "Decimal " in string:
+        for marker, cls in financial_units_markers.items():
+            if marker in string:
+                stripped_string = string.replace(marker, "")
+                try:
+                    return cls(Decimal(stripped_string))
+                except decimal.InvalidOperation:
+                    pass
+                except  ValueError:
+                    return "Negative Financial unit crab."
+        if "Decimal " in string:
             stripped_string = string.replace("Decimal ", "")
             try:
                 return Decimal(stripped_string)
@@ -429,6 +386,10 @@ def smart_serializer(obj):
         return f"Decimal {obj}"
     elif isinstance(obj, Money):
         return f"MoneyInCents {obj.amount}"
+    elif isinstance(obj, Tax):
+        return f"TaxInCents {obj.amount}"
+    elif isinstance(obj, Liability):
+        return f"LiabilityInCents {obj.amount}"
     elif isinstance(obj, relativedelta):
         relativedelta_data = obj.__dict__.copy()
         relativedelta_data["ThisKeyIsReservedForTypesOnly"] = "relativedelta"
@@ -438,250 +399,7 @@ def smart_serializer(obj):
         return f'''ThisIsADateTimeObject{the_iso_format}'''
     else:
         raise TypeError(f"Not serializable, bro, type is {type(obj)}")
-class Variables(str, Enum):
-    Configurations = "Configurations"
-    Taxes = "Data"
-    TaxBenefits = "TaxBenefits"
-class Configurations(str, Enum):
-    VariablesType = "VariablesType"
-    TaxNameType = "TaxNameType"
-    TaxName = "TaxName"
-    TaxationType = "TaxationType"
-    TaxBase = "TaxBase"
-    VerifierConfigurations = "VerifierConfigurations"
-    AdjustedIncomeSource = "AdjustedIncomeSource"
-    LastUpdated = "LastUpdated"
-    HighestBracketCeiling = "HighestBracketCeiling"
-    TheFlatRate = "TheFlatRate"
-    TheFixedAmount = "TheFixedAmount"
-    HaveCap = "HaveCap"
-class VariablesType(str, Enum):
-    FederalVariables = "FederalVariables"
-    StateVariables = "StateVariables"
-    CityVariables = "CityVariables"
-    LocalVariables = "LocalVariables"
-    CustomVariables = "CustomVariables"
-class TaxBase(str,Enum):
-    CustomBase = "CustomBase"
-class TaxationType(str, Enum):
-    ProgressiveRate = "ProgressiveRate"
-    FlatRate = "FlatRate"
-    FixedAmount = "FixedAmount"
-class TaxVariables(str, Enum):
-    Configurations = "Configurations"
-    BracketCeilings = "BracketCeilings"
-    Rates = "Rates"
-    OtherTaxes = "OtherTaxes"
-    TaxBenefits = "TaxBenefits"
-    TaxCaps = "TaxCaps"
-class TaxNameType(str, Enum):
-    StandardName = "StandardName"
-    CustomName = "CustomName"
-class TaxCap(str, Enum):
-    TaxLimitType = "TaxLimitType"
-    TaxCapType = "TaxCapType"
-class TaxLimitType(str, Enum):
-    UpperLimitTaxCap = "UpperLimitTaxCap"
-    LowerLimitTaxCap = "LowerLimitTaxCap"
-class TaxCapType(str, Enum):
-    TaxFixedCap = "TaxFixedCap"
-    TaxDynamicCap = "TaxDynamicCap"
-class TaxBenefits(str, Enum):
-    Deduction = "Deduction"
-    Exemption = "Exemption"
-    Credit = "Credit"
-    Deferral = "Deferral"
-class Deduction(str, Enum):
-    Itemization = "Itemization"
-    StandardDeduction = "StandardDeduction"
-    ItemizedDeduction = "ItemizedDeduction"
-class VerifierConfigurations(str, Enum):
-    RequiredVerifierVersion = "RequiredVerifierVersion"
-    SupportsForwardCompatibility = "SupportsForwardCompatibility"
-    SupportsBackwardCompatibility = "SupportsBackwardCompatibility"
-class AdjustedIncomeSource(str, Enum):
-    FromState = "FromState"
-    FromFederal = "FromFederal"
-    FromCity = "FromCity"
-    FromLocal = "FromLocal"
-    FromTaxSpecificTaxBenefits = "FromTaxSpecificTaxBenefits"
-class Itemization(str, Enum):
-    MortgageInterest = "MortgageInterest"
-    PropertyTaxItemization = "PropertyTaxItemization"
-    MedicalAndDentalExpenses = "MedicalAndDentalExpenses"
-    SALT = "SALT"
-    PublicCashDonations = "PublicCashDonations"
-    PrivateCashDonations = "PrivateCashDonations"
-    PublicNonCashDonations = "PublicNonCashDonations"
-    PublicCapitalGainsDonations = "PublicCapitalGainsDonations"
-    PrivateCapitalGainsDonations = "PrivateCapitalGainsDonations"
-    InvestmentInterestExpense = "InvestmentInterestExpense"
-    CasualtyAndTheftLoses = "CasualtyAndTheftLoses"
-    UnReimbursedEmployeeExpense = "UnReimbursedEmployeeExpense"
-    TaxPreparationFees = "TaxPreparationFees"
-    TotalDonations = "TotalDonations"
-class ItemItemization(str, Enum):
-    DeductibleValue = "DeductibleValue"
-    Note = "Note"
-    CarryForwardTimeLimit = "CarryForwardTimeLimit"
-    LimitType = "LimitType"
-    CapsAppliedCount = "CapsAppliedCount"
-    ItemizationCaps = "ItemizationCaps"
-    ItemizationCap = "ItemizationCap"
-    ItemizationCapType = "ItemizationCapType"
-    ItemItemizationType = "ItemItemizationType"
-    ReceiverCode = "ReceiverCode"
-    ReceivingCode = "ReceivingCode"
-    HaveBaseAGIDependentFeeders = "HaveBaseAGIDependentFeeders"
-    FeederSpecificCode = "FeederSpecificCode"
-class ItemItemizationType(str, Enum):
-    Direct = "Direct"
-    Feeder = "Feeder"
-    Receiver = "Receiver"
-class ItemizationCapType(str, Enum):
-    FixedCap = "FixedCap"
-    DynamicCap = "DynamicCap"
-class ItemizationPhase(str, Enum):
-    FirstPhase = "FirstPhase"
-    SecondPhase = "SecondPhase"
-    ThirdPhase = "ThirdPhase"
-    PreBaseAGIA1 = "PreBaseAGIA1"
-    PreBaseAGIA2 = "PreBaseAGIA2"
-    PreBaseAGIA3 = "PreBaseAGIA3"
-    PreBaseAGIB = "PreBaseAGIB"
-    PostBaseAGIA1 = "PostBaseAGIA1"
-    PostBaseAGIA2 = "PostBaseAGIA2"
-    PostBaseAGIA3 = "PostBaseAGIA3"
-    PostBaseAGIB = "PostBaseAGIB"
-class Values(str, Enum):
-    DynamicValue = "DynamicValue"
-    FixedValue = "FixedValue"
-    SmartValueA = "SmartValueA"
-    SmartValueB = "SmartValueB"
-    InterValuesOperation = "InterValuesOperation"
-class VPerson(str, Enum):
-    VGrossIncome = "VGrossIncome"
-    VTotalInvestmentInterestExpense = "VTotalInvestmentInterestExpense"
-    VTotalDebtBasedInvestmentEarnings = "VTotalDebtBasedInvestmentEarnings"
-    VAdjustedIncome = "VAdjustedIncome"
-    VPropertyValue = "VPropertyValue"
-    VWealth = "VWealth"
-    VCapitalGain = "VCapitalGain"
-    VCustomBase = "VCustomBase"
-    VTotalItemized = "VTotalItemized"
-    VTotalInvestmentExpense = "VTotalInvestmentExpense"
-    VMedicalExpenses = "VMedicalExpenses"
-    VCharitableContributions = "VCharitableContributions"
-    VMortgageInterest = "VMortgageInterest"
-    VPropertyTaxes = "VPropertyTaxes"
-    VStudentLoanInterest = "VStudentLoanInterest"
-    VJobExpenses = "VJobExpenses"
-    VEducationExpenses = "VEducationExpenses"
-    VRetirementContributions = "VRetirementContributions"
-    VChildcareExpenses = "VChildcareExpenses"
-    VHealthInsurancePremiums = "VHealthInsurancePremiums"
-    VBusinessExpenses = "VBusinessExpenses"
-    VRentalExpenses = "VRentalExpenses"
-    VAlimonyPaid = "VAlimonyPaid"
-    VGamblingLosses = "VGamblingLosses"
-    VMovingExpenses = "VMovingExpenses"
-    VPublicCashDonations = "VPublicCashDonations"
-    VPrivateCashDonations = "VPrivateCashDonations"
-    VPublicNonCashDonations = "VPublicNonCashDonations"
-    VPublicCapitalGainsDonations = "VPublicCapitalGainsDonations"
-    VPrivateCapitalGainsDonations = "VPrivateCapitalGainsDonations"
-    VInvestmentInterestExpense = "VInvestmentInterestExpense"
-    VSALT = "VSALT"
-
-    VCurrentBaseAGI = "VCurrentBaseAGI"
-    VCurrentFinalAGI = "VCurrentFinalAGI"
-
-    VFederalBaseAGI = "VFederalBaseAGI"
-    VFederalFinalAGI = "VFederalFinalAGI"
-
-    VStateBaseAGI = "VStateBaseAGI"
-    VStateFinalAGI = "VStateFinalAGI"
-
-    VCityBaseAGI = "VCityBaseAGI"
-    VCityFinalAGI = "VCityFinalAGI"
-
-    VLocalBaseAGI = "VLocalBaseAGI"
-    VLocalFinalAGI = "VLocalFinalAGI"
-class InterValuesOperation(str, Enum):
-    Addition = "Addition"
-    Subtraction = "Subtraction"
-    Multiplication = "Multiplication"
-    Division = "Division"
-    FloorSubtraction = "FloorSubtraction"
-class LimitType(str, Enum):
-    UpperLimit = "UpperLimit"
-    LowerLimit = "LowerLimit"
-class StandardTaxName(str, Enum):
-    # Income Taxes
-    FederalIncomeTax = "FederalIncomeTax"
-    StateIncomeTax = "StateIncomeTax"
-    LocalIncomeTax = "LocalIncomeTax"
-
-    # Payroll Taxes
-    SocialSecurityTax = "SocialSecurityTax"
-    MedicareTax = "MedicareTax"
-    AdditionalMedicareTax = "AdditionalMedicareTax"
-    FederalUnemploymentTax = "FederalUnemploymentTax"
-    StateUnemploymentTax = "StateUnemploymentTax"
-
-    # Corporate Taxes
-    CorporateIncomeTax = "CorporateIncomeTax"
-    GrossReceiptsTax = "GrossReceiptsTax"
-
-    # Sales & Consumption Taxes
-    SalesTax = "SalesTax"
-    UseTax = "UseTax"
-    ValueAddedTax = "ValueAddedTax"
-    ExciseTax = "ExciseTax"
-
-    # Property & Wealth Taxes
-    RealEstatePropertyTax = "RealEstatePropertyTax"
-    PersonalPropertyTax = "PersonalPropertyTax"
-    EstateTax = "EstateTax"
-    InheritanceTax = "InheritanceTax"
-    GiftTax = "GiftTax"
-
-    # Capital & Investment Taxes
-    CapitalGainsTax = "CapitalGainsTax"
-    DividendTax = "DividendTax"
-    NetInvestmentIncomeTax = "NetInvestmentIncomeTax"
-
-    # Other Taxes
-    SinTax = "SinTax"
-    CarbonTax = "CarbonTax"
-    LuxuryTax = "LuxuryTax"
-    ImportDuty = "ImportDuty"
-class LocalIndex(str, Enum):
-    FederalVariablesIndex = "FederalVariablesIndex"
-    StatesVariablesIndex = "StatesVariablesIndex"
-    CitiesVariablesIndex = "CitiesVariablesIndex"
-    MunicipalitiesVariablesIndex = "MunicipalitiesVariablesIndex"
-class AGIType(str, Enum):
-    FederalAGI = "FederalAGI"
-    StateAGI = "StateAGI"
-    CityAGI = "CityAGI"
-    CustomAGI = "CustomAGI"
-class Preference(str, Enum):
-    TaxPreference = "TaxPreference"
-class TaxPreference(str, Enum):
-    PreferredDeductionType = "PreferredDeductionType"
-class PreferredDeductionType(str, Enum):
-    PreferStandardized = "PreferStandardized"
-    PreferItemized = "PreferItemized"
-    PreferAuto = "PreferAuto"
-class Jurisdiction(str, Enum):
-    Federal = "Federal"
-    State = "State"
-    City = "City"
-    Local = "Local"
-    County = "County"
-    Municipal = "Municipal"
-    GlobalSettings = "GlobalSettings"
+UnKnown = 'UnKnown'
 all_enums = [Currency,
              PaymentStatus,
              MaritalStatus,
@@ -703,7 +421,6 @@ all_enums = [Currency,
              TaxNameType,
              StandardTaxName,
              ]
-
 standard_variables = {
     Variables.Configurations: {
         Configurations.VerifierConfigurations: {
@@ -771,7 +488,7 @@ standard_variables = {
                 Configurations.TaxNameType: TaxNameType.CustomName,
                 Configurations.TaxName: "The Tomato Tax",
                 Configurations.TaxationType: TaxationType.FixedAmount,
-                Configurations.TheFixedAmount: Money(Decimal("15000")),
+                Configurations.TheFixedAmount: Tax(Decimal("15000")),
                 Configurations.HaveCap: False
             },
         },
@@ -1004,7 +721,6 @@ california_variables = {
                 Configurations.TaxationType: TaxationType.ProgressiveRate,
                 Configurations.TaxBase: VPerson.VStateFinalAGI,
                 Configurations.AdjustedIncomeSource: AdjustedIncomeSource.FromState,
-                Configurations.HaveCap: False,
             },
             TaxVariables.BracketCeilings: {
                 MaritalStatus.Single: {
@@ -1098,10 +814,135 @@ california_variables = {
         },
     },
 }
+new_york_variables = {
+    Variables.Configurations: {
+        Configurations.VerifierConfigurations: {
+            VerifierConfigurations.RequiredVerifierVersion: 1,
+            VerifierConfigurations.SupportsForwardCompatibility: True,
+            VerifierConfigurations.SupportsBackwardCompatibility: False,
+        },
+        Configurations.VariablesType: VariablesType.StateVariables,
+        Configurations.LastUpdated: datetime.datetime(2025, 3, 31)
+    },
+    Variables.Taxes: {
+        1: {
+            TaxVariables.Configurations: {
+                Configurations.TaxNameType: TaxNameType.StandardName,
+                Configurations.TaxName: StandardTaxName.StateIncomeTax,
+                Configurations.TaxationType: TaxationType.ProgressiveRate,
+                Configurations.TaxBase: VPerson.VStateFinalAGI,
+                Configurations.AdjustedIncomeSource: AdjustedIncomeSource.FromState,
+            },
+            TaxVariables.BracketCeilings: {
+                MaritalStatus.Single: {
+                    1: Money(Decimal("850000")),
+                    2: Money(Decimal("1170000")),
+                    3: Money(Decimal("1390000")),
+                    4: Money(Decimal("2140000")),
+                    5: Money(Decimal("8065000")),
+                    6: Money(Decimal("21540000")),
+                    7: Money(Decimal("107755000")),
+                    8: Money(Decimal("500000000")),
+                    9: Money(Decimal("Infinity")),
+                },
+                MaritalStatus.MarriedJoint: {
+                    1: Money(Decimal("1715000")),
+                    2: Money(Decimal("2360000")),
+                    3: Money(Decimal("2790000")),
+                    4: Money(Decimal("4280000")),
+                    5: Money(Decimal("16155000")),
+                    6: Money(Decimal("32320000")),
+                    7: Money(Decimal("215400000")),
+                    8: Money(Decimal("500000000")),
+                    9: Money(Decimal("Infinity")),
+                },
+                MaritalStatus.MarriedNonJoint: {  # Copy of Single
+                    1: Money(Decimal("850000")),
+                    2: Money(Decimal("1170000")),
+                    3: Money(Decimal("1390000")),
+                    4: Money(Decimal("2140000")),
+                    5: Money(Decimal("8065000")),
+                    6: Money(Decimal("21540000")),
+                    7: Money(Decimal("107755000")),
+                    8: Money(Decimal("500000000")),
+                    9: Money(Decimal("Infinity")),
+                },
+            },
+            TaxVariables.Rates: {
+                1: Decimal("0.04"),
+                2: Decimal("0.045"),
+                3: Decimal("0.0525"),
+                4: Decimal("0.059"),
+                5: Decimal("0.0597"),
+                6: Decimal("0.0633"),
+                7: Decimal("0.0685"),
+                8: Decimal("0.103"),
+                9: Decimal("0.109"),
+            },
+        },
+    },
+    Variables.TaxBenefits: {
+        TaxBenefits.Deduction: {
+            Deduction.StandardDeduction: {
+                MaritalStatus.Single: Money(Decimal("800000")),
+                MaritalStatus.MarriedJoint: Money(Decimal("1605000")),
+                MaritalStatus.MarriedNonJoint: Money(Decimal("800000")),
+            },
+            Deduction.Itemization: {
+                Itemization.MortgageInterest: {
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
+                    ItemItemization.DeductibleValue: VPerson.VMortgageInterest,
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.ItemizationCaps: {
+                        1: {
+                            ItemItemization.LimitType: LimitType.UpperLimit,
+                            ItemItemization.ItemizationCapType: ItemizationCapType.FixedCap,
+                            Values.FixedValue: Money(Decimal("10000000")),
+                        },
+                    },
+                },
+                Itemization.MedicalAndDentalExpenses: {
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
+                    ItemItemization.DeductibleValue: VPerson.VMedicalExpenses,
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.ItemizationCaps: {
+                        1: {
+                            ItemItemization.LimitType: LimitType.LowerLimit,
+                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
+                            Values.SmartValueA: VPerson.VFederalBaseAGI,
+                            Values.SmartValueB: Decimal("0.075"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
+                        },
+                    },
+                },
+                Itemization.CharitableContributions: {
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
+                    ItemItemization.DeductibleValue: VPerson.VCharitableContributions,
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.ItemizationCaps: {
+                        1: {
+                            ItemItemization.LimitType: LimitType.UpperLimit,
+                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
+                            Values.SmartValueA: VPerson.VFederalBaseAGI,
+                            Values.SmartValueB: Decimal("0.60"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
+                        },
+                    },
+                },
+            },
+        },
+        TaxBenefits.Exemption: {
+            MaritalStatus.Single: Money(Decimal("0")),  # NY does not have a personal exemption
+            MaritalStatus.MarriedJoint: Money(Decimal("0")),
+            MaritalStatus.MarriedNonJoint: Money(Decimal("0")),
+        },
+    },
+}
 default_variables_index = {
     LocalIndex.FederalVariablesIndex: standard_variables,
     LocalIndex.StatesVariablesIndex: {
-        State.California: california_variables
+        State.California: california_variables,
+        State.NewYork: new_york_variables
     },
     LocalIndex.CitiesVariablesIndex: {},
     LocalIndex.MunicipalitiesVariablesIndex: {},
@@ -1382,6 +1223,649 @@ class Person:
             return self.income - self.state_deductions
         else:
             return Money()
+
+    @property
+    def city_standardized_deductions(self):
+        return calculate_tax_benefits_when_standardized(self, self.city_variables)
+
+    @property
+    def city_itemized_deductions(self):
+        return calculate_tax_benefits_when_itemizing(self, self.city_variables)
+
+    @property
+    def city_deductions(self):
+        preference = self.preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType][
+            Jurisdiction.State]
+        if preference == PreferredDeductionType.PreferAuto:
+            return max(self.city_standardized_deductions, self.city_itemized_deductions)
+        elif preference == PreferredDeductionType.PreferStandardized:
+            return self.city_standardized_deductions
+        elif preference == PreferredDeductionType.PreferItemized:
+            return self.city_itemized_deductions
+
+    @property
+    def city_base_agi(self):
+        # noinspection PyTypeChecker
+        items = self.city_variables[Variables.TaxBenefits][TaxBenefits.Deduction][Deduction.Itemization]
+        pre_base_agi_itemization = calculate_pre_base_agi_itemization(items, self, vperson_to_person_attributes)
+        if self.income >= pre_base_agi_itemization:
+            return self.income - pre_base_agi_itemization
+        else:
+            return Money()
+
+    @property
+    def city_final_agi(self):
+        if self.income >= self.city_deductions:
+            return self.income - self.city_deductions
+        else:
+            return Money()
+
+    @property
+    def municipal_standardized_deductions(self):
+        return calculate_tax_benefits_when_standardized(self, self.municipal_variables)
+
+    @property
+    def municipal_itemized_deductions(self):
+        return calculate_tax_benefits_when_itemizing(self, self.municipal_variables)
+
+    @property
+    def municipal_deductions(self):
+        preference = self.preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType][
+            Jurisdiction.State]
+        if preference == PreferredDeductionType.PreferAuto:
+            return max(self.municipal_standardized_deductions, self.municipal_itemized_deductions)
+        elif preference == PreferredDeductionType.PreferStandardized:
+            return self.municipal_standardized_deductions
+        elif preference == PreferredDeductionType.PreferItemized:
+            return self.municipal_itemized_deductions
+
+    @property
+    def municipal_base_agi(self):
+        # noinspection PyTypeChecker
+        items = self.municipal_variables[Variables.TaxBenefits][TaxBenefits.Deduction][Deduction.Itemization]
+        pre_base_agi_itemization = calculate_pre_base_agi_itemization(items, self, vperson_to_person_attributes)
+        if self.income >= pre_base_agi_itemization:
+            return self.income - pre_base_agi_itemization
+        else:
+            return Money()
+
+    @property
+    def municipal_final_agi(self):
+        if self.income >= self.municipal_deductions:
+            return self.income - self.municipal_deductions
+        else:
+            return Money()
+def verify_variables_viability_and_integrity(variables:dict, break_for_ultra_safety=False):
+    result = {
+        CheckResults.ViabilityForChecking: False,
+        CheckResults.Integrity: True,
+        CheckResults.IntegrityFailureCode: None,
+        CheckResults.Safety: True,
+        CheckResults.UltraSafety: True,
+        CheckResults.SafetyFailureCode: None,
+    }
+    verifier_version = 1
+    required_verifier_version = variables.get(Variables.Configurations, {}).get(Configurations.VerifierConfigurations, {}).get(VerifierConfigurations.RequiredVerifierVersion)
+    if verifier_version == required_verifier_version:
+        result[CheckResults.ViabilityForChecking] = True
+    else:
+        if verifier_version > required_verifier_version:
+            forward_compatibility = variables.get(Variables.Configurations, {}).get(Configurations.VerifierConfigurations, {}).get(VerifierConfigurations.SupportsForwardCompatibility)
+            if forward_compatibility:
+                result[CheckResults.ViabilityForChecking] = True
+        else:
+            backward_compatibility = variables.get(Variables.Configurations, {}).get(Configurations.VerifierConfigurations, {}).get(VerifierConfigurations.SupportsBackwardCompatibility)
+            if backward_compatibility:
+                result[CheckResults.ViabilityForChecking] = True
+    if result[CheckResults.ViabilityForChecking]:
+        if variables.get(Variables.Taxes):
+            if isinstance(variables.get(Variables.Taxes), dict):
+                taxes_verification_result = verify_taxes_integrity(variables.get(Variables.Taxes, {}),break_for_ultra_safety)
+                if not taxes_verification_result[CheckResults.Integrity] or not taxes_verification_result[CheckResults.Safety]:
+                    result = taxes_verification_result
+            else:
+                result[CheckResults.IntegrityFailureCode] = "Taxes are not a dictionary"
+                result[CheckResults.Integrity] = False
+                result[CheckResults.Safety] = False
+                result[CheckResults.SafetyFailureCode] = "Failure due to Integrity failure."
+        else:
+            result[CheckResults.IntegrityFailureCode] = "Taxes are missing."
+            result[CheckResults.Integrity] = False
+            result[CheckResults.Safety] = False
+            result[CheckResults.SafetyFailureCode] = "Failure due to Integrity failure."
+        if variables.get(Variables.TaxBenefits):
+            if isinstance(variables.get(Variables.TaxBenefits), dict):
+                tax_benefits_verification_result = verify_tax_benefits(variables.get(Variables.TaxBenefits),break_for_ultra_safety)
+                if not tax_benefits_verification_result[CheckResults.Integrity] or not tax_benefits_verification_result[CheckResults.Safety]:
+                    result = tax_benefits_verification_result
+            else:
+                result[CheckResults.IntegrityFailureCode] = "Tax Benefits are not a dictionary"
+                result[CheckResults.Integrity] = False
+                result[CheckResults.Safety] = False
+                result[CheckResults.SafetyFailureCode] = "Failure due to Integrity failure."
+        else:
+            result[CheckResults.IntegrityFailureCode] = "Tax Benefits are missing."
+            result[CheckResults.Integrity] = False
+            result[CheckResults.Safety] = False
+            result[CheckResults.SafetyFailureCode] = "Failure due to Integrity failure."
+    else:
+        result = {
+        CheckResults.ViabilityForChecking: False,
+        CheckResults.Integrity: UnKnown,
+        CheckResults.IntegrityFailureCode: None,
+        CheckResults.Safety: UnKnown,
+        CheckResults.UltraSafety: UnKnown,
+        CheckResults.SafetyFailureCode: None,
+    }
+    return result
+def verify_taxes_integrity(taxes:dict, break_for_ultra_safety=False):
+    result = {
+        CheckResults.Integrity: True,
+        CheckResults.IntegrityFailureCode: None,
+        CheckResults.Safety: True,
+        CheckResults.UltraSafety: True,
+        CheckResults.SafetyFailureCode: None,
+    }
+    for tax_name ,tax in taxes.items():
+        if isinstance(tax, dict):
+            tax_result = verify_a_tax_integrity(tax)
+            if not break_for_ultra_safety:
+                if not tax_result[CheckResults.Integrity] or not tax_result[CheckResults.Safety]:
+                    result = tax_result
+                    break
+            if break_for_ultra_safety and not tax_result[CheckResults.UltraSafety]:
+                result = tax_result
+                break
+        else:
+            result[CheckResults.Integrity] = False
+            result[CheckResults.IntegrityFailureCode] = f'''Tax named "{tax_name}" is not a dictionary.'''
+    if not result[CheckResults.Integrity]:
+        result[CheckResults.Safety] = False
+        result[CheckResults.UltraSafety] = False
+    return result
+def verify_a_tax_integrity(tax:dict, break_for_ultra_safety=False):
+    result = {
+        CheckResults.Integrity: True,
+        CheckResults.IntegrityFailureCode: None,
+        CheckResults.Safety: True,
+        CheckResults.UltraSafety: True,
+        CheckResults.SafetyFailureCode: None,
+    }
+    while True:
+        tax_name_type = tax.get(TaxVariables.Configurations, {}).get(Configurations.TaxNameType)
+        tax_name = tax.get(TaxVariables.Configurations, {}).get(Configurations.TaxName)
+        if not isinstance(tax_name_type, TaxNameType):
+            result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Tax name type is not of class TaxNameType."
+            result[CheckResults.Integrity] = False
+            break
+        if tax_name_type == TaxNameType.StandardName and not isinstance(tax_name, StandardTaxName):
+            result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Tax name type is set to standard, while name is custom."
+            result[CheckResults.Integrity] = False
+            break
+        if tax_name_type == TaxNameType.CustomName and not isinstance(tax_name, str):
+            result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Tax name type is set to custom, but name is not a string"
+            result[CheckResults.Integrity] = False
+            break
+        have_cap = tax.get(TaxVariables.Configurations, {}).get(Configurations.HaveCap)
+        if not isinstance(have_cap, bool):
+            result[CheckResults.IntegrityFailureCode] = f"{tax_name}: HaveCap value is missing or not a bool."
+            result[CheckResults.Integrity] = False
+            break
+        taxation_type = tax.get(TaxVariables.Configurations, {}).get(Configurations.TaxationType)
+        if taxation_type == TaxationType.ProgressiveRate:
+            tax_base = tax.get(TaxVariables.Configurations, {}).get(Configurations.TaxBase)
+            if not isinstance(tax_base, VPerson):
+                result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Tax base is not a VPerson."
+                result[CheckResults.Integrity] = False
+                break
+            highest_bracket_ceil = tax.get(TaxVariables.Configurations, {}).get(Configurations.HighestBracketCeiling)
+            if not isinstance(highest_bracket_ceil, int):
+                result[CheckResults.IntegrityFailureCode] = f"{tax_name}: highest bracket ceil is missing or not an int."
+                result[CheckResults.Integrity] = False
+                break
+            if not tax.get(TaxVariables.BracketCeilings):
+                result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Taxation type is progressive, but there are no bracket ceilings."
+                result[CheckResults.Integrity] = False
+                break
+            if not tax.get(TaxVariables.Rates):
+                result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Taxation type is progressive, but there are no rates."
+                result[CheckResults.Integrity] = False
+                break
+            for status in [MaritalStatus.Single, MaritalStatus.MarriedJoint, MaritalStatus.MarriedNonJoint]:
+                if isinstance(tax.get(TaxVariables.BracketCeilings).get(status), dict):
+                    if not highest_bracket_ceil == len(tax.get(TaxVariables.BracketCeilings).get(status)):
+                        result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Alleged highest tax bracket is not equal to len of brackets ceilings"
+                        result[CheckResults.Integrity] = False
+                        break
+                else:
+                    result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Bracket ceilings for status {status} is missing."
+                    result[CheckResults.Integrity] = False
+                    break
+                order = highest_bracket_ceil
+                while order > 1:
+                    current_ceil = tax.get(TaxVariables.BracketCeilings, {}).get(status, {}).get(order)
+                    upcoming_smaller_ceil = tax.get(TaxVariables.BracketCeilings, {}).get(status, {}).get(order - 1)
+                    if not current_ceil > upcoming_smaller_ceil:
+                        result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Bracket ceilings for status {status} are disordered."
+                        result[CheckResults.Integrity] = False
+                        break
+                    # noinspection PyUnreachableCode
+                    if not isinstance(current_ceil, Money) or not isinstance(upcoming_smaller_ceil, Money):
+                        result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Brackets ceilings are not of money class."
+                        result[CheckResults.Integrity] = False
+                        break
+                    order -= 1
+            if not result[CheckResults.Integrity]:
+                break
+            order = highest_bracket_ceil
+            while order > 1:
+                current_rate = tax.get(TaxVariables.Rates, {}).get(order)
+                upcoming_smaller_rate = tax.get(TaxVariables.Rates, {}).get(order-1)
+                # noinspection PyUnreachableCode
+                if not isinstance(current_rate, Decimal) or not isinstance(upcoming_smaller_rate, Decimal):
+                    result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Rates are not Decimal."
+                    result[CheckResults.Integrity] = False
+                    break
+                if not current_rate > upcoming_smaller_rate:
+                    result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Rates are disordered."
+                    result[CheckResults.Integrity] = False
+                    break
+                if current_rate >= Decimal("1") or upcoming_smaller_rate >= Decimal("1"):
+                    result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Rate is equal to or greater than 100%."
+                    result[CheckResults.Integrity] = False
+                    break
+                order-=1
+        elif taxation_type == TaxationType.FlatRate:
+            tax_base = tax.get(TaxVariables.Configurations, {}).get(Configurations.TaxBase)
+            if not isinstance(tax_base, VPerson):
+                result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Tax base is not a VPerson."
+                result[CheckResults.Integrity] = False
+            the_flat_rate = tax.get(TaxVariables.Configurations, {}).get(Configurations.TheFlatRate)
+            if not isinstance(the_flat_rate, Decimal):
+                result[CheckResults.IntegrityFailureCode] = f"{tax_name}: the flat rate is not a decimal or maybe missing."
+                result[CheckResults.Integrity] = False
+        elif taxation_type == TaxationType.FixedAmount:
+            the_fixed_amount = tax.get(TaxVariables.Configurations, {}).get(Configurations.TheFixedAmount)
+            if not isinstance(the_fixed_amount, Tax):
+                result[CheckResults.IntegrityFailureCode] = f"{tax_name}: fixed amount is not of class Tax."
+                result[CheckResults.Integrity] = False
+        if tax[TaxVariables.Configurations][Configurations.HaveCap]:
+            tax_cap_verification_result = verify_a_tax_caps(tax)
+            if not tax_cap_verification_result[CheckResults.Integrity] or not tax_cap_verification_result[CheckResults.Safety]:
+                result = tax_cap_verification_result
+                break
+            if break_for_ultra_safety and not tax_cap_verification_result[CheckResults.UltraSafety]:
+                result = tax_cap_verification_result
+                break
+        break
+
+    return result
+def verify_a_tax_caps(tax:dict, break_for_ultra_safety=False):
+    result = {
+        CheckResults.Integrity: True,
+        CheckResults.IntegrityFailureCode: None,
+        CheckResults.Safety: True,
+        CheckResults.UltraSafety: True,
+        CheckResults.SafetyFailureCode: None,
+    }
+    caps = tax.get(TaxVariables.TaxCaps, {})
+    for cap in caps.values():
+        cap_verification_result = verify_a_tax_cap(cap)
+        if not cap_verification_result[CheckResults.Integrity] or not cap_verification_result[CheckResults.Safety]:
+            result = cap_verification_result
+            break
+        if break_for_ultra_safety and not cap_verification_result[CheckResults.UltraSafety]:
+            result = cap_verification_result
+            break
+    return result
+def verify_a_tax_cap(cap:dict, break_for_ultra_safety=False):
+    result = {
+        CheckResults.Integrity: True,
+        CheckResults.IntegrityFailureCode: None,
+        CheckResults.Safety: True,
+        CheckResults.UltraSafety: True,
+        CheckResults.SafetyFailureCode: None,
+    }
+    limit_type = cap.get(TaxCap.TaxLimitType)
+    cap_type = cap.get(TaxCap.TaxCapType)
+    while result[CheckResults.Integrity] and result[CheckResults.Safety]:
+        if not isinstance(limit_type, TaxLimitType):
+            result[CheckResults.IntegrityFailureCode] = f"Limit type is not of class LimitType: {limit_type}"
+            result[CheckResults.Integrity] = False
+        if not  isinstance(cap_type, TaxCapType):
+            result[CheckResults.IntegrityFailureCode] = f"Cap type is not of class CapType: {cap_type}"
+            result[CheckResults.Integrity] = False
+        if cap_type == TaxCapType.TaxFixedCap:
+            fixed_cap = cap.get(Values.FixedValue)
+            if not isinstance(fixed_cap, StandardFinancialUnit):
+                result[CheckResults.IntegrityFailureCode] = f"Fixed cap is not of class Standard Financial Unit: {fixed_cap}"
+                result[CheckResults.Integrity] = False
+        elif cap_type == TaxCapType.TaxDynamicCap:
+            one_dynamic = cap.get(Values.DynamicValue)
+            if one_dynamic:
+                if not isinstance(one_dynamic, VPerson):
+                    result[CheckResults.IntegrityFailureCode] = f"Dynamic value is not of class VPerson: {one_dynamic}"
+                    result[CheckResults.Integrity] = False
+            else:
+                smart_a = cap.get(Values.SmartValueA)
+                smart_b = cap.get(Values.SmartValueB)
+                operation = cap.get(Values.InterValuesOperation)
+                smart_values_integrity_result = verify_smart_values_integrity(smart_a, smart_b, operation)
+                if smart_values_integrity_result[CheckResults.Integrity] and smart_values_integrity_result[CheckResults.Safety]:
+                    smart_values_safety_result = verify_smart_values_safety(smart_a, smart_b, operation)
+                    if not smart_values_safety_result[CheckResults.Safety]:
+                        result[CheckResults.Safety] = smart_values_safety_result[CheckResults.Safety]
+                        result[CheckResults.UltraSafety] = smart_values_safety_result[CheckResults.UltraSafety]
+                        result[CheckResults.SafetyFailureCode] = smart_values_safety_result[CheckResults.SafetyFailureCode]
+                    if break_for_ultra_safety and not smart_values_safety_result[CheckResults.UltraSafety]:
+                        result[CheckResults.UltraSafety] = smart_values_safety_result[CheckResults.UltraSafety]
+                        result[CheckResults.SafetyFailureCode] = smart_values_safety_result[CheckResults.SafetyFailureCode]
+                        break
+                else:
+                    result[CheckResults.Integrity] = smart_values_integrity_result[CheckResults.Integrity]
+                    result[CheckResults.IntegrityFailureCode] = smart_values_integrity_result[CheckResults.IntegrityFailureCode]
+        break
+    return result
+def directly_calculable(value):
+    if any(isinstance(value, cls) for cls in [Decimal, StandardFinancialUnit]):
+        return True
+def verify_smart_values_integrity(value_a, value_b, operation):
+    failure_code = None
+    integrity = True
+    while integrity:
+        if not isinstance(operation, InterValuesOperation):
+            failure_code = f"Operation is not of InterValuesOperation class: {operation}"
+            integrity = False
+        for a_value in [value_a, value_b]:
+            if isinstance(a_value, dict):
+                smart_values_result = verify_smart_values_integrity(a_value.get(Values.SmartValueA), a_value.get(Values.SmartValueB), a_value.get(Values.InterValuesOperation))
+                if not smart_values_result[CheckResults.Integrity]:
+                    failure_code = smart_values_result[CheckResults.IntegrityFailureCode]
+                    integrity = False
+            else:
+                if not valid_direct_smart_value(a_value):
+                    failure_code = f"Invalid direct smart value: {a_value}"
+                    integrity = False
+        break
+    result = {
+        CheckResults.Integrity: integrity,
+        CheckResults.IntegrityFailureCode: failure_code,
+    }
+    return result
+def valid_direct_smart_value(value):
+    if any(isinstance(value, cls) for cls in [Decimal, StandardFinancialUnit, VPerson]):
+        return True
+def verify_smart_values_safety(value_a, value_b, operation):
+    safety_failure_code = ""
+    ultra_safety = True
+    safety = True
+    for a_value in [value_a, value_b]:
+        if directly_calculable(a_value) and a_value <= Decimal("0"):
+            safety_failure_code = f"A negative value is involved: {a_value}"
+            ultra_safety = False
+            safety = False
+    while safety:
+        if operation == InterValuesOperation.Division:
+            if directly_calculable(value_b):
+                if value_b == Decimal("0"):
+                    safety_failure_code = f"Zero division expected: {value_a} divided by {value_b}"
+                    ultra_safety = False
+                    safety = False
+            else:
+                ultra_safety = False
+        if operation == InterValuesOperation.Subtraction:
+            if directly_calculable(value_a) and directly_calculable(value_b):
+                if value_a < value_b:
+                    safety_failure_code= f"A negative value is involved: Subtrahend is greater than minuend: {value_a} - {value_b}"
+                    ultra_safety = False
+                    safety = False
+            elif directly_calculable(value_a):
+                if not value_a > Decimal("0"):
+                    safety_failure_code = f"A probable negative value is involved: Subtrahend is probably greater than minuend: {value_a} - {value_b}"
+                    ultra_safety = False
+                    safety = False
+            elif directly_calculable(value_b):
+                if value_b > Decimal("0"):
+                    safety_failure_code = f"Operation might produce negative value: {value_a} - {value_b}, use floor subtraction for safety."
+                    ultra_safety = False
+        break
+    result = {
+        CheckResults.Safety: safety,
+        CheckResults.UltraSafety: ultra_safety,
+        CheckResults.SafetyFailureCode: safety_failure_code,
+    }
+    return result
+def verify_tax_benefits(tax_benefits:dict, break_for_ultra_safety=False):
+    result = {
+        CheckResults.Integrity: True,
+        CheckResults.IntegrityFailureCode: None,
+        CheckResults.Safety: True,
+        CheckResults.UltraSafety: True,
+        CheckResults.SafetyFailureCode: None,
+    }
+    integrity = True
+    while integrity:
+        deductions = tax_benefits.get(TaxBenefits.Deduction)
+        if isinstance(deductions, dict):
+            standard_deduction = deductions.get(Deduction.StandardDeduction)
+            standard_deduction_verification_result = verify_standard_deduction(standard_deduction)
+            if not standard_deduction_verification_result[CheckResults.Integrity]:
+                result[CheckResults.IntegrityFailureCode] = standard_deduction_verification_result[CheckResults.IntegrityFailureCode]
+                integrity = False
+            itemization = deductions.get(Deduction.Itemization)
+            itemization_verification_result = verify_items(itemization, break_for_ultra_safety)
+            if not itemization_verification_result[CheckResults.Integrity]:
+                result = itemization_verification_result
+                integrity = False
+        else:
+            result[CheckResults.IntegrityFailureCode] = f"Deduction is not a dictionary, instead {type(deductions)}"
+            integrity = False
+        exemption = tax_benefits.get(TaxBenefits.Exemption)
+        exemption_verification_result = verify_exemption(exemption)
+        if not exemption_verification_result[CheckResults.Integrity]:
+            result[CheckResults.IntegrityFailureCode] = exemption_verification_result[CheckResults.IntegrityFailureCode]
+            integrity = False
+        break
+    result[CheckResults.Integrity] = integrity
+    return result
+def verify_items(items:dict, break_for_ultra_safety=False):
+    result = {
+        CheckResults.Integrity: True,
+        CheckResults.IntegrityFailureCode: None,
+        CheckResults.Safety: True,
+        CheckResults.UltraSafety: True,
+        CheckResults.SafetyFailureCode: None,
+    }
+    feeders = []
+    receivers = []
+    integrity = True
+    while integrity:
+        for item_name ,item_data in items.items():
+            itemization_type = item_data.get(ItemItemization.ItemItemizationType, {})
+            if isinstance(itemization_type, ItemItemizationType):
+                if itemization_type == ItemItemizationType.Feeder:
+                    receiver_code = item_data.get(ItemItemization.ReceiverCode)
+                    if isinstance(receiver_code, str):
+                        if receiver_code not in feeders:
+                            feeders.append(receiver_code)
+                    else:
+                        result[
+                            CheckResults.IntegrityFailureCode] = f'''Receiver code "{receiver_code}" is not a string.'''
+                        integrity = False
+                        break
+                    feeder_specific_code = item_data.get(ItemItemization.FeederSpecificCode)
+                    if not isinstance(feeder_specific_code, int) and not isinstance(feeder_specific_code, str):
+                        result[
+                            CheckResults.IntegrityFailureCode] = f"Invalid Feeder specific code: {feeder_specific_code}"
+                        integrity = False
+                        break
+                    deductible_source = item_data.get(ItemItemization.DeductibleValue)
+                    if not isinstance(deductible_source, VPerson):
+                        result[
+                            CheckResults.IntegrityFailureCode] = f'''Deductible "{deductible_source}" is not of VPerson class.'''
+                        integrity = False
+                        break
+                elif itemization_type == ItemItemizationType.Receiver:
+                    receiving_code = item_data.get(ItemItemization.ReceivingCode)
+                    if isinstance(receiving_code, str):
+                        if receiving_code not in receivers:
+                            receivers.append(receiving_code)
+                    else:
+                        result[
+                            CheckResults.IntegrityFailureCode] = f'''Receiving code "{receiving_code}" is not a string.'''
+                        integrity = False
+                        break
+            else:
+                result[CheckResults.IntegrityFailureCode] = f'''Itemization type is not of ItemItemizationType class'''
+                integrity = False
+                break
+            count_of_caps_applied = item_data.get(ItemItemization.CapsAppliedCount)
+            caps_applied = item_data.get(ItemItemization.ItemizationCaps, {})
+            if not isinstance(count_of_caps_applied, int):
+                result[CheckResults.IntegrityFailureCode] = f'''Caps applied count({count_of_caps_applied}) is not an integer'''
+                integrity = False
+                break
+            if not isinstance(caps_applied, dict):
+                result[CheckResults.IntegrityFailureCode] = f'''Caps must be a dictionary, instead {type(caps_applied)}.'''
+                integrity = False
+                break
+            if count_of_caps_applied != len(caps_applied):
+                result[CheckResults.IntegrityFailureCode] = f'''Alleged count of caps is not equal to len of caps. {count_of_caps_applied} != {len(caps_applied)}'''
+                integrity = False
+                break
+            for cap_number, cap_data in caps_applied.items():
+                cap_verification_result = verify_itemization_cap(cap_data, break_for_ultra_safety)
+                if not cap_verification_result[CheckResults.Integrity]:
+                    result = cap_verification_result
+                    result[CheckResults.IntegrityFailureCode] = f"Item name {item_name}: Cap number {cap_number}: " + result[CheckResults.IntegrityFailureCode]
+                    integrity = False
+                    break
+            carry_forward = item_data.get(ItemItemization.CarryForwardTimeLimit)
+            if carry_forward:
+                if not isinstance(carry_forward, relativedelta) and not isinstance(carry_forward, datetime.datetime):
+                    result[CheckResults.IntegrityFailureCode] = f"Carry-forward is not of relativedelta or datetime class, instead {type(carry_forward)}"
+                    integrity = False
+                    break
+        if integrity:
+            if feeders != receivers:
+                result[
+                    CheckResults.IntegrityFailureCode] = f"Feeders-receivers codes mismatch: Feeding codes: {feeders}, Receivers {receivers}"
+                integrity = False
+                break
+        break
+    result[CheckResults.Integrity] = integrity
+    return result
+def verify_itemization_cap(cap:dict, break_for_ultra_safety=False):
+    result = {
+        CheckResults.Integrity: True,
+        CheckResults.IntegrityFailureCode: None,
+        CheckResults.Safety: True,
+        CheckResults.UltraSafety: True,
+        CheckResults.SafetyFailureCode: None,
+    }
+    integrity = True
+    while integrity:
+        limit_type = cap.get(ItemItemization.LimitType)
+        if not isinstance(limit_type, LimitType):
+            result[CheckResults.IntegrityFailureCode] = "Itemization Cap Error: Limit type is not of LimitType class."
+            integrity = False
+        cap_type = cap.get(ItemItemization.ItemizationCapType)
+        if isinstance(cap_type, ItemizationCapType):
+            if cap_type == ItemizationCapType.FixedCap:
+                the_fixed_cap = cap.get(Values.FixedValue)
+                if the_fixed_cap:
+                    if not isinstance(the_fixed_cap, StandardFinancialUnit):
+                        result[CheckResults.IntegrityFailureCode] = "Itemization Cap Error: Fixed cap is not StandardFinancialUnit class."
+                        integrity = False
+                        break
+                else:
+                    result[CheckResults.IntegrityFailureCode] = "Itemization Cap Error: Fixed Cap is missing"
+                    integrity = False
+                    break
+            elif cap_type == ItemizationCapType.DynamicCap:
+                one_dynamic = cap.get(Values.DynamicValue)
+                if one_dynamic:
+                    if not isinstance(one_dynamic, StandardFinancialUnit) and not isinstance(one_dynamic, VPerson):
+                        result[
+                            CheckResults.IntegrityFailureCode] = "Itemization Cap Error: Dynamic cap is not StandardFinancialUnit class."
+                        integrity = False
+                        break
+                else:
+                    smart_a = cap.get(Values.SmartValueA)
+                    smart_b = cap.get(Values.SmartValueB)
+                    operation = cap.get(Values.InterValuesOperation)
+                    integrity_verification_result = verify_smart_values_integrity(smart_a, smart_b, operation)
+                    if integrity_verification_result[CheckResults.Integrity]:
+                        safety_verification_result = verify_smart_values_safety(smart_a, smart_b, operation)
+                        if not safety_verification_result[CheckResults.Safety]:
+                            result[CheckResults.Safety] = False
+                            result[CheckResults.UltraSafety] = False
+                            result[CheckResults.SafetyFailureCode] = safety_verification_result[CheckResults.SafetyFailureCode]
+                            result[CheckResults.IntegrityFailureCode] = "Itemization Cap Error: Smart values safety error."
+                            integrity = False
+                            break
+                        elif not safety_verification_result[CheckResults.UltraSafety] and break_for_ultra_safety:
+                            result[CheckResults.UltraSafety] = False
+                            result[
+                                CheckResults.IntegrityFailureCode] = "Itemization Cap Error: Smart values ultra safety error."
+                            integrity = False
+                            break
+                    else:
+                        result[
+                            CheckResults.IntegrityFailureCode] = "Itemization Cap Error: Smart values integrity error."
+                        integrity = False
+                        break
+        else:
+            result[
+                CheckResults.IntegrityFailureCode] = "Itemization Cap Error: Itemization cape type is not CapType class."
+            integrity = False
+            break
+        break
+    result[CheckResults.Integrity] = integrity
+    return result
+def verify_standard_deduction(standard_deduction:dict):
+    result = {
+        CheckResults.Integrity: True,
+        CheckResults.IntegrityFailureCode: None,
+    }
+    if isinstance(standard_deduction, dict):
+        for status in [MaritalStatus.Single, MaritalStatus.MarriedJoint, MaritalStatus.MarriedNonJoint]:
+            if result[CheckResults.Integrity]:
+                deduction_for_status = standard_deduction.get(status)
+                if deduction_for_status:
+                    if not isinstance(deduction_for_status, Money):
+                        result[CheckResults.IntegrityFailureCode] = f"{status} standard deduction is not of Money class, instead {type(deduction_for_status)}"
+                        result[CheckResults.Integrity] = False
+                else:
+                    result[CheckResults.IntegrityFailureCode] = f"{status} standard deduction is missing."
+                    result[CheckResults.Integrity] = False
+
+    else:
+        result[CheckResults.IntegrityFailureCode] = f"Standard deductions is not a dictionary, instead {type(standard_deduction)}"
+        result[CheckResults.Integrity] = False
+    return result
+def verify_exemption(exemption:dict):
+    result = {
+        CheckResults.Integrity: True,
+        CheckResults.IntegrityFailureCode: None,
+    }
+    if isinstance(exemption, dict):
+        for status in [MaritalStatus.Single, MaritalStatus.MarriedJoint, MaritalStatus.MarriedNonJoint]:
+            if result[CheckResults.Integrity]:
+                exemption_for_status = exemption.get(status)
+                if exemption_for_status:
+                    if not isinstance(exemption_for_status, Money):
+                        result[
+                            CheckResults.IntegrityFailureCode] = f"{status} exemption is not of Money class, instead {type(exemption_for_status)}"
+                        result[CheckResults.Integrity] = False
+                else:
+                    result[CheckResults.IntegrityFailureCode] = f"{status} exemption is missing."
+                    result[CheckResults.Integrity] = False
+    else:
+        result[
+            CheckResults.IntegrityFailureCode] = f"Exemption is not a dictionary, instead {type(exemption)}"
+        result[CheckResults.Integrity] = False
+    return result
 def vperson_to_person_attribute(vperson, person:Person, converter):
     if isinstance(vperson, VPerson):
         if vperson in converter:
@@ -1587,10 +2071,12 @@ def apply_rate(brackets ,bracket, rates, agi):
     accumulated_tax += agi*rates[order]
     return accumulated_tax
 def process_taxes(taxes:dict, person:Person, converter:dict):
+    taxes_output = {}
     for tax in taxes.values():
         tax_name = str(tax[TaxVariables.Configurations][Configurations.TaxName]).replace("StandardTaxName.", "")
         tax_value = calculate_tax(tax, person, converter)
-        print(f"Tax Name: {tax_name}, Tax Value: {tax_value}")
+        taxes_output[tax_name] = tax_value
+    return taxes_output
 def calculate_tax_cap(cap:dict, person, converter):
     if cap[TaxCap.TaxCapType] == TaxCapType.TaxDynamicCap:
         if cap.get(Values.DynamicValue):
@@ -1627,117 +2113,137 @@ def adjust_tax_value_for_its_caps(tax_value, caps:dict, person:Person, converter
     else:
         tax_value = Tax()
     return tax_value
-some_taxes = standard_variables[Variables.Taxes]
 
+if __name__ == '__main__':
+    p = Person()
+    p.status = MaritalStatus.Single
+    p.income = Money(Decimal("500000000"))
+    setattr(p, "medical_expenses", Liability(Decimal("6000000")))  # $60,000
+    setattr(p, "mortgage_interest", Liability(Decimal("200000000")))  # $2,000,000
+    setattr(p, "property_taxes", Liability(Decimal("4000000")))  # $40,000
+    setattr(p, "SALT", Money(Decimal("5000000")))  # $50,000
+    setattr(p, "public_cash_donations", Money(Decimal("25000000")))  # $250,000
+    setattr(p, "private_cash_donations", Money(Decimal("10000000")))  # $100,000
+    setattr(p, "investment_interest_expense", Liability(Decimal("12000000")))  # $120,000
+    setattr(p, "total_debt_based_investment_earnings", Money(Decimal("8000000")))  # $80,000 (caps investment deduction)
+    # print(p.federal_final_agi)
+    # noinspection PyTypeChecker
+    # print(nested_dictionary_reader(process_taxes(standard_variables[Variables.Taxes], p, vperson_to_person_attributes)))
+    p.state = State.California
+    # print(verify_taxes_integrity(random_taxes))
+    # print(p.state_final_agi)
+    # p.state = State.NewYork
+    # standard_user_preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType][Jurisdiction.State] = PreferredDeductionType.PreferStandardized
+    # print(p.federal_final_agi)
+    # print(p.state_deductions)
+    # noinspection PyTypeChecker
+    # print(nested_dictionary_reader(my_items[Itemization.TotalDonations]))
+    # print(nested_dictionary_reader(verify_items(my_items, True)))
+    # print(nested_dictionary_reader(verify_variables_viability_and_integrity(standard_variables)))
+    # print(getattr(p, "federal_final_agi"))
+    from decimal import Decimal
 
-p = Person()
-p.status = MaritalStatus.Single
-p.income = Money(Decimal("500000000"))
-# Set attributes for the person
-# setattr(p, "federal_base_agi", Money(Decimal("50000000")))  # $500,000
-setattr(p, "medical_expenses", Liability(Decimal("6000000")))  # $60,000
-setattr(p, "mortgage_interest", Liability(Decimal("200000000")))  # $2,000,000
-setattr(p, "property_taxes", Liability(Decimal("4000000")))  # $40,000
-setattr(p, "SALT", Money(Decimal("5000000")))  # $50,000
-setattr(p, "public_cash_donations", Money(Decimal("25000000")))  # $250,000
-setattr(p, "private_cash_donations", Money(Decimal("10000000")))  # $100,000
-setattr(p, "investment_interest_expense", Liability(Decimal("12000000")))  # $120,000
-setattr(p, "total_debt_based_investment_earnings", Money(Decimal("8000000")))  # $80,000 (caps investment deduction)
-nested_smart_value = {
-    Values.SmartValueA: {
+    a_result = verify_variables_viability_and_integrity(new_york_variables, True)
+    print(nested_dictionary_reader(a_result))
+
+    test_smart_values = {
         Values.SmartValueA: {
             Values.SmartValueA: {
+                Values.SmartValueA: Decimal(5),
+                Values.SmartValueB: {
+                    Values.SmartValueA: Decimal(2),
+                    Values.SmartValueB: Decimal(3),
+                    Values.InterValuesOperation: InterValuesOperation.Multiplication
+                },
+                Values.InterValuesOperation: InterValuesOperation.Addition
+            },
+            Values.SmartValueB: {
                 Values.SmartValueA: {
-                    Values.SmartValueA: 5,
-                    Values.SmartValueB: 3,
+                    Values.SmartValueA: {
+                        Values.SmartValueA: Decimal(10),
+                        Values.SmartValueB: Decimal(2),
+                        Values.InterValuesOperation: InterValuesOperation.Multiplication
+                    },
+                    Values.SmartValueB: {
+                        Values.SmartValueA: Decimal(4),
+                        Values.SmartValueB: Decimal(2),
+                        Values.InterValuesOperation: InterValuesOperation.Subtraction
+                    },
                     Values.InterValuesOperation: InterValuesOperation.Addition
                 },
                 Values.SmartValueB: {
-                    Values.SmartValueA: 10,
-                    Values.SmartValueB: 2,
+                    Values.SmartValueA: Decimal(8),
+                    Values.SmartValueB: {
+                        Values.SmartValueA: Decimal(3),
+                        Values.SmartValueB: Decimal(1),
+                        Values.InterValuesOperation: InterValuesOperation.Addition
+                    },
                     Values.InterValuesOperation: InterValuesOperation.Multiplication
                 },
                 Values.InterValuesOperation: InterValuesOperation.Subtraction
             },
-            Values.SmartValueB: {
-                Values.SmartValueA: 8,
-                Values.SmartValueB: {
-                    Values.SmartValueA: 4,
-                    Values.SmartValueB: 2,
-                    Values.InterValuesOperation: InterValuesOperation.Division
-                },
-                Values.InterValuesOperation: InterValuesOperation.FloorSubtraction
-            },
             Values.InterValuesOperation: InterValuesOperation.Multiplication
         },
         Values.SmartValueB: {
             Values.SmartValueA: {
-                Values.SmartValueA: 7,
+                Values.SmartValueA: {
+                    Values.SmartValueA: Decimal(6),
+                    Values.SmartValueB: Decimal(2),
+                    Values.InterValuesOperation: InterValuesOperation.Division
+                },
                 Values.SmartValueB: {
                     Values.SmartValueA: {
-                        Values.SmartValueA: 6,
-                        Values.SmartValueB: 2,
+                        Values.SmartValueA: Decimal(4),
+                        Values.SmartValueB: Decimal(2),
+                        Values.InterValuesOperation: InterValuesOperation.Multiplication
+                    },
+                    Values.SmartValueB: {
+                        Values.SmartValueA: Decimal(3),
+                        Values.SmartValueB: Decimal(1),
                         Values.InterValuesOperation: InterValuesOperation.Subtraction
                     },
-                    Values.SmartValueB: 3,
-                    Values.InterValuesOperation: InterValuesOperation.Addition
+                    Values.InterValuesOperation: InterValuesOperation.FloorSubtraction
                 },
-                Values.InterValuesOperation: InterValuesOperation.Multiplication
-            },
-            Values.SmartValueB: 9,
-            Values.InterValuesOperation: InterValuesOperation.Division
-        },
-        Values.InterValuesOperation: InterValuesOperation.Subtraction
-    },
-    Values.SmartValueB: {
-        Values.SmartValueA: {
-            Values.SmartValueA: {
-                Values.SmartValueA: 2,
-                Values.SmartValueB: 3,
-                Values.InterValuesOperation: InterValuesOperation.Multiplication
+                Values.InterValuesOperation: InterValuesOperation.Addition
             },
             Values.SmartValueB: {
                 Values.SmartValueA: {
-                    Values.SmartValueA: 10,
-                    Values.SmartValueB: 5,
-                    Values.InterValuesOperation: InterValuesOperation.FloorSubtraction
+                    Values.SmartValueA: Decimal(7),
+                    Values.SmartValueB: {
+                        Values.SmartValueA: Decimal(2),
+                        Values.SmartValueB: Decimal(5),
+                        Values.InterValuesOperation: InterValuesOperation.Multiplication
+                    },
+                    Values.InterValuesOperation: InterValuesOperation.Subtraction
                 },
-                Values.SmartValueB: 4,
-                Values.InterValuesOperation: InterValuesOperation.Addition
-            },
-            Values.InterValuesOperation: InterValuesOperation.Subtraction
-        },
-        Values.SmartValueB: {
-            Values.SmartValueA: {
-                Values.SmartValueA: 20,
-                Values.SmartValueB: 4,
-                Values.InterValuesOperation: InterValuesOperation.Division
-            },
-            Values.SmartValueB: {
-                Values.SmartValueA: 15,
                 Values.SmartValueB: {
-                    Values.SmartValueA: 6,
-                    Values.SmartValueB: 3,
-                    Values.InterValuesOperation: InterValuesOperation.Multiplication
+                    Values.SmartValueA: Decimal(9),
+                    Values.SmartValueB: {
+                        Values.SmartValueA: Decimal(3),
+                        Values.SmartValueB: Decimal(1),
+                        Values.InterValuesOperation: InterValuesOperation.Addition
+                    },
+                    Values.InterValuesOperation: InterValuesOperation.Division
                 },
-                Values.InterValuesOperation: InterValuesOperation.FloorSubtraction
+                Values.InterValuesOperation: InterValuesOperation.Multiplication
             },
-            Values.InterValuesOperation: InterValuesOperation.Multiplication
+            Values.InterValuesOperation: InterValuesOperation.Addition
         },
-        Values.InterValuesOperation: InterValuesOperation.Addition
-    },
-    Values.InterValuesOperation: InterValuesOperation.Division
-}
+        Values.InterValuesOperation: InterValuesOperation.Subtraction
+    }
+    # a_damn_result = verify_taxes_integrity(random_taxes)
+    # print(a_damn_result)
 
-print(p.federal_final_agi)
-# noinspection PyTypeChecker
-process_taxes(standard_variables[Variables.Taxes], p, vperson_to_person_attributes)
-# p.state = State.California
-# print(p.state_deductions)
-# print(p.state_deductions)
+    # print(calculate_smart_values(test_smart_values[Values.SmartValueA], test_smart_values[Values.SmartValueB], test_smart_values[Values.InterValuesOperation], p, vperson_to_person_attributes))
+    # print(verify_smart_values_integrity(test_smart_values[Values.SmartValueA], test_smart_values[Values.SmartValueB], test_smart_values[Values.InterValuesOperation]))
 
-# print(getattr(p, "federal_final_agi"))
-
-
-# process_taxes(some_taxes, p, vperson_to_person_attributes)
-
+    # print(nested_dictionary_reader(process_taxes(some_taxes, p, vperson_to_person_attributes)))
+    # import  json
+    # with open("StandardVariablesParsed.json", "w") as f:
+    #     # noinspection PyTypeChecker
+    #     json.dump(standard_variables, f, default=smart_serializer)
+    # with open("FurtherCorruptedVariables.json", "r") as f:
+    #     loaded_raw = json.load(f)
+    #
+    # restored_back = restore_objects(loaded_raw, all_enums)
+    # print(nested_dictionary_reader(verify_variables_viability_and_integrity(restored_back)))
