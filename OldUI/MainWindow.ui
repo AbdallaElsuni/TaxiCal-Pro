@@ -1,0 +1,1113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>650</width>
+    <height>559</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>650</width>
+    <height>559</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>7000</width>
+    <height>7000</height>
+   </size>
+  </property>
+  <property name="font">
+   <font>
+    <pointsize>14</pointsize>
+    <bold>true</bold>
+   </font>
+  </property>
+  <property name="windowTitle">
+   <string>TaxiCal</string>
+  </property>
+  <property name="windowIcon">
+   <iconset resource="../Icons/TaxiCal_Icons.qrc">
+    <normaloff>:/Main/T.png</normaloff>:/Main/T.png</iconset>
+  </property>
+  <property name="tabShape">
+   <enum>QTabWidget::TabShape::Rounded</enum>
+  </property>
+  <property name="unifiedTitleAndToolBarOnMac">
+   <bool>true</bool>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QGridLayout" name="gridLayout_3">
+    <item row="0" column="0" colspan="2">
+     <widget class="QStackedWidget" name="stackedWidget">
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="DisclaimerPage">
+       <layout class="QGridLayout" name="gridLayout_7">
+        <item row="1" column="1">
+         <widget class="QPushButton" name="pb_DeclineAndExit">
+          <property name="text">
+           <string> Decline and Exit </string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="2">
+         <widget class="QPushButton" name="pb_AgreeAndContinue">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="text">
+           <string>  Agree and Continue </string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0" colspan="3">
+         <widget class="QTextBrowser" name="tb_EULA">
+          <property name="html">
+           <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Segoe UI'; font-size:14pt; font-weight:700; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:10pt;&quot;&gt;TaxiCal Terms of Use&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:10pt;&quot;&gt;Effective Date: [3/11/2025]&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:10pt;&quot;&gt;By using TaxiCal (&amp;quot;the App&amp;quot;), you agree to the following terms and conditions. If you do not agree, do not proceed with the use of the App.&lt;/span&gt;&lt;/p&gt;
+&lt;ol style=&quot;margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 1;&quot;&gt;
+&lt;li style=&quot; font-size:10pt;&quot; style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Personal Use Only
+&lt;ul style=&quot;margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 2;&quot;&gt;
+&lt;li style=&quot; font-size:10pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;TaxiCal is licensed for personal, non-commercial use only.&lt;/li&gt;
+&lt;li style=&quot; font-size:10pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Any commercial use, including but not limited to selling, redistributing, or integrating TaxiCal into other financial services, is strictly prohibited.&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li style=&quot; font-size:10pt;&quot; style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;No Warranty &amp;amp; Limitation of Liability
+&lt;ul style=&quot;margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 2;&quot;&gt;
+&lt;li style=&quot; font-size:10pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;TaxiCal is provided &amp;quot;as is&amp;quot; without any warranties, express or implied.&lt;/li&gt;
+&lt;li style=&quot; font-size:10pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;We do not guarantee the accuracy, reliability, or completeness of the calculations and information provided.&lt;/li&gt;
+&lt;li style=&quot; font-size:10pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;You acknowledge that any tax-related decisions made based on the App's output are your sole responsibility.&lt;/li&gt;
+&lt;li style=&quot; font-size:10pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Under no circumstances shall we be liable for any direct, indirect, incidental, or consequential damages arising from the use of the App.&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li style=&quot; font-size:10pt;&quot; style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;No Professional Advice
+&lt;ul style=&quot;margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 2;&quot;&gt;
+&lt;li style=&quot; font-size:10pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;TaxiCal is a tax estimation tool and does not provide legal, financial, or tax advice.&lt;/li&gt;
+&lt;li style=&quot; font-size:10pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Users should consult with a qualified tax professional for official tax filings and financial decisions.&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li style=&quot; font-size:10pt;&quot; style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Data &amp;amp; Privacy
+&lt;ul style=&quot;margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 2;&quot;&gt;
+&lt;li style=&quot; font-size:10pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The App does not collect or store personal financial data.&lt;/li&gt;
+&lt;li style=&quot; font-size:10pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Any data entered remains on the user's device and is not shared with third parties.&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li style=&quot; font-size:10pt;&quot; style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Modifications &amp;amp; Termination
+&lt;ul style=&quot;margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 2;&quot;&gt;
+&lt;li style=&quot; font-size:10pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;We reserve the right to update or discontinue the App at any time without notice.&lt;/li&gt;
+&lt;li style=&quot; font-size:10pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Continued use after modifications constitutes acceptance of the new terms.&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;/ol&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:10pt;&quot;&gt;By clicking &amp;quot;Next&amp;quot; or continuing to use the App, you acknowledge that you have read, understood, and agreed to these Terms of Use.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <spacer name="horizontalSpacer_2">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="FirstPage">
+       <layout class="QGridLayout" name="gridLayout">
+        <item row="5" column="0">
+         <widget class="QLabel" name="lb_AccountQuestion">
+          <property name="text">
+           <string>Already have an account?</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0" colspan="2">
+         <widget class="QGroupBox" name="groupBox">
+          <property name="title">
+           <string>GroupBox</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_10">
+           <item row="1" column="0">
+            <widget class="QLabel" name="lb_BlankTotalFederalItemized">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1" colspan="3">
+            <widget class="QComboBox" name="cb_FederalDeductionType">
+             <item>
+              <property name="text">
+               <string>Itemized</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Standard</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="1" column="3">
+            <widget class="QToolButton" name="tb_SmartFederalItemization">
+             <property name="enabled">
+              <bool>true</bool>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="icon">
+              <iconset resource="../Icons/TaxiCal_Icons.qrc">
+               <normaloff>:/Buttons/BlueSheildWithCheck.png</normaloff>:/Buttons/BlueSheildWithCheck.png</iconset>
+             </property>
+             <property name="iconSize">
+              <size>
+               <width>26</width>
+               <height>26</height>
+              </size>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QLineEdit" name="le_TotalFederalItemization">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="placeholderText">
+              <string>Federal Total Itemization</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QLabel" name="lb_FederalDeductionType">
+             <property name="text">
+              <string>Deduction Type</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="2">
+            <widget class="QToolButton" name="tb_ManualFederalItemization">
+             <property name="enabled">
+              <bool>true</bool>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="icon">
+              <iconset resource="../Icons/TaxiCal_Icons.qrc">
+               <normaloff>:/Buttons/RedPencilSmaller.png</normaloff>:/Buttons/RedPencilSmaller.png</iconset>
+             </property>
+             <property name="iconSize">
+              <size>
+               <width>26</width>
+               <height>26</height>
+              </size>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="1" column="0" colspan="2">
+         <widget class="QGroupBox" name="gb_MaritalStatusAndIncome">
+          <property name="title">
+           <string>Income and Marital Status</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_9">
+           <item row="0" column="0">
+            <widget class="QLabel" name="lb_MaritualStatus">
+             <property name="text">
+              <string>Marital Status</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QComboBox" name="cb_Status">
+             <item>
+              <property name="text">
+               <string>Select Status</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Single</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Married (Joint Account)</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Married (No Joint Account)</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="lb_Income">
+             <property name="text">
+              <string>Income</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QLineEdit" name="le_Income">
+             <property name="placeholderText">
+              <string>$0</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="0" column="0" colspan="2">
+         <widget class="QGroupBox" name="gb_Name">
+          <property name="title">
+           <string>Name</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_2">
+           <item row="0" column="1">
+            <widget class="QLineEdit" name="le_FirstName">
+             <property name="placeholderText">
+              <string>John</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QLabel" name="lb_FirstName">
+             <property name="text">
+              <string>First Name</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="2">
+            <widget class="QLabel" name="lb_LastName">
+             <property name="text">
+              <string>Last Name</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="3">
+            <widget class="QLineEdit" name="le_LastName">
+             <property name="placeholderText">
+              <string>Smith</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="3" column="0" colspan="2">
+         <widget class="QGroupBox" name="gb_NextAndExit">
+          <property name="title">
+           <string/>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_4">
+           <item row="0" column="0">
+            <widget class="QPushButton" name="pb_Exit">
+             <property name="text">
+              <string>Exit</string>
+             </property>
+             <property name="icon">
+              <iconset resource="../Icons/TaxiCal_Icons.qrc">
+               <normaloff>:/Buttons/Cross.png</normaloff>:/Buttons/Cross.png</iconset>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QPushButton" name="pb_Next">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="layoutDirection">
+              <enum>Qt::LayoutDirection::RightToLeft</enum>
+             </property>
+             <property name="text">
+              <string>Next</string>
+             </property>
+             <property name="icon">
+              <iconset resource="../Icons/TaxiCal_Icons.qrc">
+               <normaloff>:/Buttons/Next.png</normaloff>:/Buttons/Next.png</iconset>
+             </property>
+             <property name="iconSize">
+              <size>
+               <width>26</width>
+               <height>26</height>
+              </size>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="5" column="1">
+         <widget class="QPushButton" name="pb_Login">
+          <property name="text">
+           <string>Login</string>
+          </property>
+          <property name="icon">
+           <iconset resource="../Icons/TaxiCal_Icons.qrc">
+            <normaloff>:/Buttons/Login.png</normaloff>:/Buttons/Login.png</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>27</width>
+            <height>27</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="0" colspan="2">
+         <widget class="QLabel" name="lb_FederalMessege">
+          <property name="text">
+           <string/>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="SecondPage">
+       <layout class="QGridLayout" name="gridLayout_5">
+        <item row="1" column="0">
+         <widget class="QLabel" name="lb_DontSeeYourCityQuestion">
+          <property name="text">
+           <string>Don't see your city on the list?</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0" colspan="2">
+         <widget class="QGroupBox" name="gb_StateAndCity">
+          <property name="title">
+           <string>State and City</string>
+          </property>
+          <layout class="QFormLayout" name="formLayout">
+           <item row="0" column="0">
+            <widget class="QLabel" name="lb_State">
+             <property name="text">
+              <string>State</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QComboBox" name="cb_State">
+             <item>
+              <property name="text">
+               <string>Select State</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Alabama</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Alaska</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Arizona</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Arkansas</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>California</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Colorado</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Connecticut</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Delaware</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Florida</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Georgia</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Hawaii</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Idaho</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Illinois</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Indiana</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Iowa</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Kansas</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Kentucky</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Louisiana</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Maine</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Maryland</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Massachusetts</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Michigan</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Minnesota</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Mississippi</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Missouri</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Montana</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Nebraska</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Nevada</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>New Hampshire</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>New Jersey</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>New Mexico</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>New York</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>North Carolina</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>North Dakota</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Ohio</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Oklahoma</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Oregon</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Pennsylvania</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Rhode Island</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>South Carolina</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>South Dakota</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Tennessee</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Texas</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Utah</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Vermont</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Virginia</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Washington</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>West Virginia</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Wisconsin</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Wyoming</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="lb_City">
+             <property name="text">
+              <string>City</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QComboBox" name="cb_City">
+             <item>
+              <property name="text">
+               <string>Select City</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QPushButton" name="pb_AddCity">
+          <property name="text">
+           <string>Add City</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="0" colspan="2">
+         <widget class="QLabel" name="lb_StateMessege">
+          <property name="text">
+           <string/>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0" colspan="2">
+         <widget class="QGroupBox" name="gb_EmployementAndBenefits">
+          <property name="title">
+           <string>Employement Status and Tax benefits</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_8">
+           <item row="2" column="1">
+            <widget class="QLineEdit" name="le_StateTotalItemization">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="placeholderText">
+              <string>State Total Itemization</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QLabel" name="lb_Employement">
+             <property name="text">
+              <string>Employement</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_2">
+             <property name="text">
+              <string>City Deductions</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="lb_StateDeductionType">
+             <property name="text">
+              <string>State Deductions</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1" colspan="3">
+            <widget class="QComboBox" name="cb_EmployementStatus">
+             <item>
+              <property name="text">
+               <string>Employed (W-2)</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Self-employed</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Retired</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="3" column="1" colspan="3">
+            <widget class="QComboBox" name="comboBox">
+             <item>
+              <property name="text">
+               <string>Standard</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Itemized</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="2" column="2">
+            <widget class="QToolButton" name="tb_ManualStateItemization">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="toolTip">
+              <string>Manually Total Itemized</string>
+             </property>
+             <property name="toolTipDuration">
+              <number>-1</number>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="icon">
+              <iconset resource="../Icons/TaxiCal_Icons.qrc">
+               <normaloff>:/Buttons/RedPencilSmaller.png</normaloff>:/Buttons/RedPencilSmaller.png</iconset>
+             </property>
+             <property name="iconSize">
+              <size>
+               <width>26</width>
+               <height>26</height>
+              </size>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="3">
+            <widget class="QToolButton" name="tb_SmartStateItemization">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="toolTip">
+              <string>Smart Itemization</string>
+             </property>
+             <property name="toolTipDuration">
+              <number>-1</number>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="icon">
+              <iconset resource="../Icons/TaxiCal_Icons.qrc">
+               <normaloff>:/Buttons/BlueSheildWithCheck.png</normaloff>:/Buttons/BlueSheildWithCheck.png</iconset>
+             </property>
+             <property name="iconSize">
+              <size>
+               <width>26</width>
+               <height>26</height>
+              </size>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="lb_Blank">
+             <property name="text">
+              <string>                             </string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1" colspan="3">
+            <widget class="QComboBox" name="cb_StateDeductionType">
+             <item>
+              <property name="text">
+               <string>Standard</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Itemized</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="lb_Blank2">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QLineEdit" name="le_CityTotalItemization">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="placeholderText">
+              <string>City Total Itemization</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="2">
+            <widget class="QToolButton" name="tb_ManualCityItemization">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="icon">
+              <iconset resource="../Icons/TaxiCal_Icons.qrc">
+               <normaloff>:/Buttons/RedPencilSmaller.png</normaloff>:/Buttons/RedPencilSmaller.png</iconset>
+             </property>
+             <property name="iconSize">
+              <size>
+               <width>26</width>
+               <height>26</height>
+              </size>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="3">
+            <widget class="QToolButton" name="tb_SmartCityItemization">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="icon">
+              <iconset resource="../Icons/TaxiCal_Icons.qrc">
+               <normaloff>:/Buttons/BlueSheildWithCheck.png</normaloff>:/Buttons/BlueSheildWithCheck.png</iconset>
+             </property>
+             <property name="iconSize">
+              <size>
+               <width>26</width>
+               <height>26</height>
+              </size>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="4" column="1">
+         <widget class="QPushButton" name="pb_Submit">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="text">
+           <string> Submit</string>
+          </property>
+          <property name="icon">
+           <iconset resource="../Icons/TaxiCal_Icons.qrc">
+            <normaloff>:/Buttons/submit.png</normaloff>:/Buttons/submit.png</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>20</width>
+            <height>20</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="0">
+         <widget class="QPushButton" name="pb_Back">
+          <property name="text">
+           <string>Back</string>
+          </property>
+          <property name="icon">
+           <iconset resource="../Icons/TaxiCal_Icons.qrc">
+            <normaloff>:/Buttons/Previous.png</normaloff>:/Buttons/Previous.png</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>26</width>
+            <height>26</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="ThirdPage">
+       <layout class="QGridLayout" name="gridLayout_6">
+        <item row="1" column="2">
+         <widget class="QPushButton" name="pb_Ok">
+          <property name="text">
+           <string>Ok</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <spacer name="horizontalSpacer">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="1" column="1">
+         <widget class="QToolButton" name="tb_Copy">
+          <property name="text">
+           <string/>
+          </property>
+          <property name="icon">
+           <iconset resource="../Icons/TaxiCal_Icons.qrc">
+            <normaloff>:/Buttons/Copy.png</normaloff>:/Buttons/Copy.png</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>26</width>
+            <height>26</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0" colspan="3">
+         <widget class="QTextBrowser" name="tb_Inform"/>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>650</width>
+     <height>33</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuAccount">
+    <property name="title">
+     <string>Account</string>
+    </property>
+    <widget class="QMenu" name="menuRegisteredAccounts">
+     <property name="font">
+      <font>
+       <pointsize>14</pointsize>
+       <bold>true</bold>
+      </font>
+     </property>
+     <property name="title">
+      <string>Registered Accounts</string>
+     </property>
+    </widget>
+    <addaction name="actionNew_Account"/>
+    <addaction name="menuRegisteredAccounts"/>
+    <addaction name="separator"/>
+    <addaction name="actionAccount_Manager"/>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+    <addaction name="actionAbout"/>
+    <addaction name="actionUpdate"/>
+   </widget>
+   <addaction name="menuAccount"/>
+   <addaction name="menuHelp"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionNew_Account">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="../Icons/TaxiCal_Icons.qrc">
+     <normaloff>:/Buttons/Plus.png</normaloff>:/Buttons/Plus.png</iconset>
+   </property>
+   <property name="text">
+    <string>New Account</string>
+   </property>
+   <property name="font">
+    <font>
+     <bold>true</bold>
+    </font>
+   </property>
+  </action>
+  <action name="actionAccount_1">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Account 1</string>
+   </property>
+  </action>
+  <action name="actionAccount_Manager">
+   <property name="icon">
+    <iconset resource="../Icons/TaxiCal_Icons.qrc">
+     <normaloff>:/Main/Account.png</normaloff>:/Main/Account.png</iconset>
+   </property>
+   <property name="text">
+    <string>Account Manager</string>
+   </property>
+   <property name="font">
+    <font>
+     <bold>true</bold>
+    </font>
+   </property>
+  </action>
+  <action name="actionAbout">
+   <property name="icon">
+    <iconset resource="../Icons/TaxiCal_Icons.qrc">
+     <normaloff>:/Buttons/About.png</normaloff>:/Buttons/About.png</iconset>
+   </property>
+   <property name="text">
+    <string>About</string>
+   </property>
+  </action>
+  <action name="actionUpdate">
+   <property name="icon">
+    <iconset resource="../Icons/TaxiCal_Icons.qrc">
+     <normaloff>:/Buttons/DownloadUpdate.png</normaloff>:/Buttons/DownloadUpdate.png</iconset>
+   </property>
+   <property name="text">
+    <string>Update</string>
+   </property>
+  </action>
+ </widget>
+ <tabstops>
+  <tabstop>tb_EULA</tabstop>
+  <tabstop>pb_AgreeAndContinue</tabstop>
+  <tabstop>pb_DeclineAndExit</tabstop>
+  <tabstop>le_FirstName</tabstop>
+  <tabstop>le_LastName</tabstop>
+  <tabstop>cb_Status</tabstop>
+  <tabstop>le_Income</tabstop>
+  <tabstop>pb_Next</tabstop>
+  <tabstop>pb_Exit</tabstop>
+  <tabstop>pb_Login</tabstop>
+  <tabstop>cb_EmployementStatus</tabstop>
+  <tabstop>cb_StateDeductionType</tabstop>
+  <tabstop>le_StateTotalItemization</tabstop>
+  <tabstop>pb_Submit</tabstop>
+  <tabstop>pb_Back</tabstop>
+  <tabstop>tb_Inform</tabstop>
+  <tabstop>tb_Copy</tabstop>
+  <tabstop>pb_Ok</tabstop>
+ </tabstops>
+ <resources>
+  <include location="../Icons/TaxiCal_Icons.qrc"/>
+ </resources>
+ <connections/>
+</ui>
