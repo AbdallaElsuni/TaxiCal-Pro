@@ -2,8 +2,12 @@ import decimal, datetime, sys
 from decimal import Decimal
 from dateutil.relativedelta import relativedelta
 
-from TaxiCal.NestedDictionariesReader import nested_dictionary_reader
+from TaxiCal.TaxiCalEnums import TaxVariables
 from TaxiCalCustomEnums import *
+from TaxiCalPro.NestedDictionariesReader import nested_dictionary_reader
+from TaxiCalPro.TaxiCalCustomEnums import TaxRequirement
+
+
 class Currency(str, Enum):
     USD = "USD"
     EUR = "EUR"
@@ -433,15 +437,17 @@ standard_variables = {
     },
     Variables.Taxes: {
         1: {
-            TaxVariables.Configurations: {
+            TaxVariables.TaxConfigurations: {
                 Configurations.TaxNameType: TaxNameType.StandardName,
                 Configurations.TaxName: StandardTaxName.FederalIncomeTax,
                 Configurations.TaxationType: TaxationType.ProgressiveRate,
+                Configurations.TaxBaseType: TaxBaseType.VPersonBase,
                 Configurations.TaxBase: VPerson.VFederalFinalAGI,
-                Configurations.TheFlatRate: Decimal("0.05"),
+                Configurations.TheFlatRate: Decimal("0.05"), # will be ignored since taxation type is set to progressive.
                 Configurations.HighestBracketCeiling: 7,
-                Configurations.TheFixedAmount: Money(Decimal("7987654")),
+                Configurations.TheFixedAmount: Money(Decimal("7987654")), # will be ignored since taxation type is set to progressive.
                 Configurations.HaveCap: False,
+                Configurations.TaxHaveRequirements: False,
                 Configurations.AdjustedIncomeSource: None, # Redundant #ForRemoval
             },
             TaxVariables.BracketCeilings: {
@@ -484,22 +490,25 @@ standard_variables = {
             },
         },
         2: {
-            TaxVariables.Configurations: {
+            TaxVariables.TaxConfigurations: {
                 Configurations.TaxNameType: TaxNameType.CustomName,
                 Configurations.TaxName: "The Tomato Tax",
                 Configurations.TaxationType: TaxationType.FixedAmount,
                 Configurations.TheFixedAmount: Tax(Decimal("15000")),
-                Configurations.HaveCap: False
+                Configurations.HaveCap: False,
+                Configurations.TaxHaveRequirements: False,
             },
         },
         3: {
-            TaxVariables.Configurations: {
+            TaxVariables.TaxConfigurations: {
                 Configurations.TaxNameType : TaxNameType.CustomName,
                 Configurations.TaxName: "Moda Fag",
                 Configurations.TaxationType: TaxationType.FlatRate,
+                Configurations.TaxBaseType: TaxBaseType.VPersonBase,
                 Configurations.TaxBase: VPerson.VFederalFinalAGI,
                 Configurations.TheFlatRate: Decimal("0.01"),
                 Configurations.HaveCap: True,
+                Configurations.TaxHaveRequirements: False,
             },
             TaxVariables.TaxCaps: {
                 1: {
@@ -507,6 +516,113 @@ standard_variables = {
                     TaxCap.TaxCapType: TaxCapType.TaxFixedCap,
                     Values.FixedValue: Money(Decimal("100000"))
                 },
+            },
+        },
+        4: {
+            TaxVariables.TaxConfigurations: {
+                Configurations.TaxNameType: TaxNameType.CustomName,
+                Configurations.TaxName: "First Tax with custom base",
+                Configurations.TaxationType: TaxationType.ProgressiveRate,
+                Configurations.HighestBracketCeiling: 7,
+                Configurations.TaxBaseType: TaxBaseType.CustomBase,
+                Configurations.TaxBase: {
+                    Values.SmartValueA: VPerson.VFederalFinalAGI,
+                    Values.SmartValueB: StandardFinancialUnit(Decimal("100000000")),
+                    Values.InterValuesOperation: InterValuesOperation.FloorSubtraction,
+                },
+                Configurations.TheFlatRate: Decimal("0.05"), # ignored
+                Configurations.HaveCap: False,
+                Configurations.TaxHaveRequirements: False,
+            },
+            TaxVariables.BracketCeilings: {
+                MaritalStatus.Single: {
+                    1: Money(Decimal("1192500")),
+                    2: Money(Decimal("4847500")),
+                    3: Money(Decimal("10335000")),
+                    4: Money(Decimal("19730000")),
+                    5: Money(Decimal("25052500")),
+                    6: Money(Decimal("62635000")),
+                    7: Money(Decimal("Infinity")),
+                },
+                MaritalStatus.MarriedJoint: {
+                    1: Money(Decimal("2385000")),
+                    2: Money(Decimal("9695000")),
+                    3: Money(Decimal("20670000")),
+                    4: Money(Decimal("39460000")),
+                    5: Money(Decimal("50105000")),
+                    6: Money(Decimal("75160000")),
+                    7: Money(Decimal("Infinity")),
+                },
+                MaritalStatus.MarriedNonJoint: {  # Copy of Single
+                    1: Money(Decimal("1192500")),
+                    2: Money(Decimal("4847500")),
+                    3: Money(Decimal("10335000")),
+                    4: Money(Decimal("19730000")),
+                    5: Money(Decimal("25052500")),
+                    6: Money(Decimal("62635000")),
+                    7: Money(Decimal("Infinity")),
+                },
+            },
+            TaxVariables.Rates: {
+                1: Decimal("0.10"),
+                2: Decimal("0.12"),
+                3: Decimal("0.22"),
+                4: Decimal("0.24"),
+                5: Decimal("0.32"),
+                6: Decimal("0.35"),
+                7: Decimal("0.37"),
+            },
+        },
+        5: {
+            TaxVariables.TaxRequirements: {
+                TaxRequirement.TaxRequirementsConfiguration:{
+                    TaxRequirementsConfiguration.RequirementsToMeet: RequirementsToMeet.MustMeetAll,
+                },
+                1: {
+                    TaxRequirement.ValueInQuestion: VPerson.VGrossIncome,
+                    TaxRequirement.ComparisonValue: Money(Decimal("100000000")),
+                    TaxRequirement.ComparisonOperator: ComparisonOperator.GreaterOrEqual,
+                },
+            },
+            TaxVariables.TaxConfigurations: {
+                Configurations.TaxNameType: TaxNameType.CustomName,
+                Configurations.TaxName: "The Pathetic Rich Tax",
+                Configurations.TaxationType: TaxationType.FixedAmount,
+                Configurations.TheFixedAmount: Tax(Decimal("15000")),
+                Configurations.HaveCap: False,
+                Configurations.TaxHaveRequirements: True,
+            },
+        },
+        6: {
+            TaxVariables.TaxRequirements: {
+                TaxRequirement.TaxRequirementsConfiguration:{
+                    TaxRequirementsConfiguration.RequirementsToMeet: RequirementsToMeet.MustMeetAll,
+                    TaxRequirementsConfiguration.SpecifiedRequirements: [[1]],
+                    TaxRequirementsConfiguration.SpecifiedRequirementsCount: 2,
+                },
+                1: {
+                    TaxRequirement.ValueInQuestion: VPerson.VGrossIncome,
+                    TaxRequirement.ComparisonValue: Money(Decimal("100000000")),
+                    TaxRequirement.ComparisonOperator: ComparisonOperator.GreaterOrEqual,
+                },
+                2: {
+                    TaxRequirement.ValueInQuestion: VPerson.VStatus,
+                    TaxRequirement.ComparisonValue: MaritalStatus.Single,
+                    TaxRequirement.ComparisonOperator: ComparisonOperator.Equal,
+                },
+                3: {
+                    TaxRequirement.ValueInQuestion: VPerson.VStatus,
+                    TaxRequirement.ComparisonValue: MaritalStatus.MarriedJoint,
+                    TaxRequirement.ComparisonOperator: ComparisonOperator.Equal,
+                }
+            },
+            TaxVariables.TaxConfigurations: {
+                Configurations.TaxNameType: TaxNameType.CustomName,
+                Configurations.TaxName: "Some tax multiple reqs",
+                Configurations.TaxationType: TaxationType.FixedAmount,
+                Configurations.TheFixedAmount: Tax(Decimal("15000")),
+                Configurations.HaveCap: False,
+                Configurations.TaxHaveRequirements: True,
             },
         },
     },
@@ -702,6 +818,7 @@ standard_user_preference = {
             Jurisdiction.Municipal: PreferredDeductionType.PreferAuto,
         },
     },
+    Preference.SafetyPreference: SafetyPreference.PreferFollowingUltraSafety,
 }
 california_variables = {
     Variables.Configurations: {
@@ -715,7 +832,7 @@ california_variables = {
     },
     Variables.Taxes: {
         1: {
-            TaxVariables.Configurations: {
+            TaxVariables.TaxConfigurations: {
                 Configurations.TaxNameType: TaxNameType.StandardName,
                 Configurations.TaxName: StandardTaxName.StateIncomeTax,
                 Configurations.TaxationType: TaxationType.ProgressiveRate,
@@ -826,7 +943,7 @@ new_york_variables = {
     },
     Variables.Taxes: {
         1: {
-            TaxVariables.Configurations: {
+            TaxVariables.TaxConfigurations: {
                 Configurations.TaxNameType: TaxNameType.StandardName,
                 Configurations.TaxName: StandardTaxName.StateIncomeTax,
                 Configurations.TaxationType: TaxationType.ProgressiveRate,
@@ -948,6 +1065,10 @@ default_variables_index = {
     LocalIndex.MunicipalitiesVariablesIndex: {},
 }
 vperson_to_person_attributes = {
+    VPerson.VStatus: {
+        "attribute name": "status",
+        "default value": MaritalStatus.UnSpecified,
+    },
     VPerson.VFederalFinalAGI: {
         "attribute name": "federal_final_agi",
         "default value": Money()
@@ -1069,7 +1190,7 @@ vperson_to_person_attributes = {
         "default value": Money()
     },
     VPerson.VGrossIncome: {
-        "attribute name": "gross_income",
+        "attribute name": "income",
         "default value": Money()
     },
     VPerson.VAdjustedIncome: {
@@ -1392,8 +1513,8 @@ def verify_a_tax_integrity(tax:dict, break_for_ultra_safety=False):
         CheckResults.SafetyFailureCode: None,
     }
     while True:
-        tax_name_type = tax.get(TaxVariables.Configurations, {}).get(Configurations.TaxNameType)
-        tax_name = tax.get(TaxVariables.Configurations, {}).get(Configurations.TaxName)
+        tax_name_type = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.TaxNameType)
+        tax_name = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.TaxName)
         if not isinstance(tax_name_type, TaxNameType):
             result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Tax name type is not of class TaxNameType."
             result[CheckResults.Integrity] = False
@@ -1406,19 +1527,27 @@ def verify_a_tax_integrity(tax:dict, break_for_ultra_safety=False):
             result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Tax name type is set to custom, but name is not a string"
             result[CheckResults.Integrity] = False
             break
-        have_cap = tax.get(TaxVariables.Configurations, {}).get(Configurations.HaveCap)
+        have_cap = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.HaveCap)
         if not isinstance(have_cap, bool):
             result[CheckResults.IntegrityFailureCode] = f"{tax_name}: HaveCap value is missing or not a bool."
             result[CheckResults.Integrity] = False
             break
-        taxation_type = tax.get(TaxVariables.Configurations, {}).get(Configurations.TaxationType)
+        taxation_type = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.TaxationType)
         if taxation_type == TaxationType.ProgressiveRate:
-            tax_base = tax.get(TaxVariables.Configurations, {}).get(Configurations.TaxBase)
-            if not isinstance(tax_base, VPerson):
-                result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Tax base is not a VPerson."
-                result[CheckResults.Integrity] = False
-                break
-            highest_bracket_ceil = tax.get(TaxVariables.Configurations, {}).get(Configurations.HighestBracketCeiling)
+            tax_base_type = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.TaxBaseType)
+            tax_base = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.TaxBase)
+            if tax_base_type == TaxBaseType.VPersonBase:
+                if not isinstance(tax_base, VPerson):
+                    result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Tax base is not a VPerson, even though TaxBaseType is set to VPersonBase."
+                    result[CheckResults.Integrity] = False
+                    break
+            elif tax_base_type == TaxBaseType.CustomBase:
+                if isinstance(tax_base, dict):
+                    if not is_valid_and_safe_smart_values(tax_base):
+                        result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Tax base is not a Custom base, even though TaxBaseType is set to CustomBase."
+                        result[CheckResults.Integrity] = False
+                        break
+            highest_bracket_ceil = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.HighestBracketCeiling)
             if not isinstance(highest_bracket_ceil, int):
                 result[CheckResults.IntegrityFailureCode] = f"{tax_name}: highest bracket ceil is missing or not an int."
                 result[CheckResults.Integrity] = False
@@ -1476,20 +1605,29 @@ def verify_a_tax_integrity(tax:dict, break_for_ultra_safety=False):
                     break
                 order-=1
         elif taxation_type == TaxationType.FlatRate:
-            tax_base = tax.get(TaxVariables.Configurations, {}).get(Configurations.TaxBase)
-            if not isinstance(tax_base, VPerson):
-                result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Tax base is not a VPerson."
-                result[CheckResults.Integrity] = False
-            the_flat_rate = tax.get(TaxVariables.Configurations, {}).get(Configurations.TheFlatRate)
+            tax_base_type = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.TaxBaseType)
+            tax_base = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.TaxBase)
+            if tax_base_type == TaxBaseType.VPersonBase:
+                if not isinstance(tax_base, VPerson):
+                    result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Tax base is not a VPerson, even though TaxBaseType is set to VPersonBase."
+                    result[CheckResults.Integrity] = False
+                    break
+            elif tax_base_type == TaxBaseType.CustomBase:
+                if isinstance(tax_base, dict):
+                    if not is_valid_and_safe_smart_values(tax_base):
+                        result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Tax base is not a Custom base, even though TaxBaseType is set to CustomBase."
+                        result[CheckResults.Integrity] = False
+                        break
+            the_flat_rate = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.TheFlatRate)
             if not isinstance(the_flat_rate, Decimal):
                 result[CheckResults.IntegrityFailureCode] = f"{tax_name}: the flat rate is not a decimal or maybe missing."
                 result[CheckResults.Integrity] = False
         elif taxation_type == TaxationType.FixedAmount:
-            the_fixed_amount = tax.get(TaxVariables.Configurations, {}).get(Configurations.TheFixedAmount)
+            the_fixed_amount = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.TheFixedAmount)
             if not isinstance(the_fixed_amount, Tax):
                 result[CheckResults.IntegrityFailureCode] = f"{tax_name}: fixed amount is not of class Tax."
                 result[CheckResults.Integrity] = False
-        if tax[TaxVariables.Configurations][Configurations.HaveCap]:
+        if tax[TaxVariables.TaxConfigurations][Configurations.HaveCap]:
             tax_cap_verification_result = verify_a_tax_caps(tax)
             if not tax_cap_verification_result[CheckResults.Integrity] or not tax_cap_verification_result[CheckResults.Safety]:
                 result = tax_cap_verification_result
@@ -1497,8 +1635,50 @@ def verify_a_tax_integrity(tax:dict, break_for_ultra_safety=False):
             if break_for_ultra_safety and not tax_cap_verification_result[CheckResults.UltraSafety]:
                 result = tax_cap_verification_result
                 break
+        have_requirements = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.TaxHaveRequirements)
+        if not isinstance(have_requirements, bool):
+            result[CheckResults.IntegrityFailureCode] = f"{tax_name}: TaxHaveRequirements value is missing or not a bool."
+            result[CheckResults.Integrity] = False
+            break
+        if have_requirements:
+            req_config = tax.get(TaxVariables.TaxRequirements, {}).get(TaxRequirement.TaxRequirementsConfiguration)
+            if isinstance(req_config, dict):
+                reqs_to_meet = req_config.get(TaxRequirementsConfiguration.RequirementsToMeet)
+                if isinstance(reqs_to_meet, RequirementsToMeet):
+                    if reqs_to_meet == RequirementsToMeet.MustMeetAnyOf:
+                        any_of_list = req_config.get(TaxRequirementsConfiguration.SpecifiedRequirements)
+                        if isinstance(any_of_list, list):
+                            for req in any_of_list:
+                                if req not in tax.get(TaxVariables.TaxRequirements, {}):
+                                    result[CheckResults.IntegrityFailureCode] = f"{tax_name}: listed requirement with the index {req} is missing."
+                                    result[CheckResults.Integrity] = False
+                                    break
+                            if not result[CheckResults.Integrity]:
+                                break
+                        else:
+                            result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Meet any of the following is not a list, instead {type(any_of_list)}."
+                            result[CheckResults.Integrity] = False
+                            break
+                    elif reqs_to_meet == RequirementsToMeet.MustMeetSpecificCount:
+                        specific_req_count_to_meet = req_config.get(TaxRequirementsConfiguration.SpecifiedRequirementsCount)
+                        if isinstance(specific_req_count_to_meet, int):
+                            if specific_req_count_to_meet > len(tax.get(TaxVariables.TaxRequirements, {}))-1:
+                                result[CheckResults.IntegrityFailureCode] = f"{tax_name}: requirement to meet count is greater than len of all listed requirements, {specific_req_count_to_meet} for {len(tax.get(TaxVariables.TaxRequirements, {}))-1}"
+                                result[CheckResults.Integrity] = False
+                                break
+                        else:
+                            result[CheckResults.IntegrityFailureCode] = f"{tax_name}: requirement to meet count is not integer, instead {type(specific_req_count_to_meet)}"
+                            result[CheckResults.Integrity] = False
+                            break
+                else:
+                    result[CheckResults.IntegrityFailureCode] = f"{tax_name}: requirement to meet type is not of RequirementsToMeet class, instead, {type(reqs_to_meet)}."
+                    result[CheckResults.Integrity] = False
+                    break
+            else:
+                result[CheckResults.IntegrityFailureCode] = f"{tax_name}: requirement configuration is not a dictionary, instead{type(req_config)}"
+                result[CheckResults.Integrity] = False
+                break
         break
-
     return result
 def verify_a_tax_caps(tax:dict, break_for_ultra_safety=False):
     result = {
@@ -2001,9 +2181,18 @@ def calculate_smart_values(a, b, operation, person:Person, converter):
             results = a-b
         else:
             results = a-a
+    elif operation == InterValuesOperation.ReturnTheGreaterValue:
+        results = max(a, b)
+    elif operation == InterValuesOperation.ReturnTheLesserValue:
+        results = min(a, b)
     else:
         raise TypeError
     return results
+def calculate_smart_values_from_dictionary(dictionary:dict, person:Person, converter:dict):
+    smart_a = dictionary[Values.SmartValueA]
+    smart_b = dictionary[Values.SmartValueB]
+    operation = dictionary[Values.InterValuesOperation]
+    return calculate_smart_values(smart_a, smart_b, operation, person, converter)
 def calculate_tax_benefits(person:Person, variables, converter):
     standard_deduction = calculate_tax_benefits_when_standardized(person, variables)
     itemized = calculate_post_base_agi_itemization(variables,person ,converter)
@@ -2032,25 +2221,130 @@ def calculate_tax_benefits_when_itemizing(person, variables, converter=None):
     return exemptions + itemizations
 def calculate_tax(tax:dict, person:Person, converter:dict):
     tax_value = Tax()
-    taxation_type = tax[TaxVariables.Configurations][Configurations.TaxationType]
+    taxation_type = tax[TaxVariables.TaxConfigurations][Configurations.TaxationType]
     if taxation_type == TaxationType.ProgressiveRate or taxation_type == TaxationType.FlatRate:
-        tax_base = tax[TaxVariables.Configurations][Configurations.TaxBase]
-        agi = vperson_to_person_attribute(tax_base, person, converter)
+        tax_base_type = tax[TaxVariables.TaxConfigurations][Configurations.TaxBaseType]
+        if tax_base_type == TaxBaseType.VPersonBase:
+            tax_base = tax[TaxVariables.TaxConfigurations][Configurations.TaxBase]
+            agi = vperson_to_person_attribute(tax_base, person, converter)
+        else: # Custom Base
+            tax_base = tax[TaxVariables.TaxConfigurations][Configurations.TaxBase]
+            agi = calculate_smart_values_from_dictionary(tax_base, person, converter)
         if taxation_type == TaxationType.ProgressiveRate:
             brackets = tax[TaxVariables.BracketCeilings][person.status]
-            highest_bracket = tax[TaxVariables.Configurations][Configurations.HighestBracketCeiling]
+            highest_bracket = tax[TaxVariables.TaxConfigurations][Configurations.HighestBracketCeiling]
             bracket = find_bracket(agi, brackets, highest_bracket)
             rates = tax[TaxVariables.Rates]
             tax_value = apply_rate(brackets, bracket, rates, agi)
         else:
-            flat_rate = tax[TaxVariables.Configurations][Configurations.TheFlatRate]
+            flat_rate = tax[TaxVariables.TaxConfigurations][Configurations.TheFlatRate]
             tax_value = agi * flat_rate
     elif taxation_type == TaxationType.FixedAmount:
-        tax_value = tax[TaxVariables.Configurations][Configurations.TheFixedAmount]
-    if tax[TaxVariables.Configurations][Configurations.HaveCap]:
+        tax_value = tax[TaxVariables.TaxConfigurations][Configurations.TheFixedAmount]
+    if tax[TaxVariables.TaxConfigurations][Configurations.HaveCap]:
         caps = tax[TaxVariables.TaxCaps]
         tax_value = adjust_tax_value_for_its_caps(tax_value, caps, person, converter)
     return tax_value
+def meets_tax_requirements_according_to_its_rules(tax:dict, person:Person, converter:dict):
+    requirements_configurations = tax[TaxVariables.TaxRequirements][TaxRequirement.TaxRequirementsConfiguration]
+    validation_rule = requirements_configurations[TaxRequirementsConfiguration.RequirementsToMeet]
+    requirements = tax[TaxVariables.TaxRequirements]
+    if validation_rule == RequirementsToMeet.MustMeetAll:
+        if meets_all_tax_requirements(requirements, person, converter):
+            return True
+    elif validation_rule == RequirementsToMeet.MustMeetAny:
+        if meets_any_of_the_tax_requirements(requirements, person, converter):
+            return True
+    elif validation_rule == RequirementsToMeet.MustMeetAnyOf:
+        if meets_any_given_list_of_tax_requirements(tax, person, converter):
+            return True
+    elif validation_rule == RequirementsToMeet.MustMeetSpecificCount:
+        if meets_specific_tax_requirements_count(tax, person, converter):
+            return True
+def meets_specific_tax_requirements_count(tax:dict, person:Person, converter:dict):
+    count_to_meet = tax[TaxVariables.TaxRequirements][TaxRequirement.TaxRequirementsConfiguration][TaxRequirementsConfiguration.SpecifiedRequirementsCount]
+    count_of_met = 0
+    requirements = tax[TaxVariables.TaxRequirements].copy()
+    requirements.pop(TaxRequirement.TaxRequirementsConfiguration)
+    for requirement in requirements.values():
+        if meet_a_given_tax_requirement(requirement, person, converter):
+            count_of_met += 1
+    if count_of_met == count_to_meet:
+        return True
+def meets_any_given_list_of_tax_requirements(tax:dict, person:Person, converter:dict): # "list_of_big_requirements_indexes_list", bad English, I know.
+    meet_those_group_of_reqs = False
+    list_of_requirements_indices_list = tax[TaxVariables.TaxRequirements][TaxRequirement.TaxRequirementsConfiguration][TaxRequirementsConfiguration.SpecifiedRequirements]
+    for inner_list_of_indices in list_of_requirements_indices_list:
+        meet_those_group_of_reqs = True
+        inner_list_of_reqs = []
+        for index in inner_list_of_indices:
+            req = tax.get(TaxVariables.TaxRequirements, {}).get(index)
+            inner_list_of_reqs.append(req)
+        for requirement in inner_list_of_reqs:
+            if not meet_a_given_tax_requirement(requirement, person, converter):
+                meet_those_group_of_reqs = False
+                break
+    return meet_those_group_of_reqs
+def meets_any_of_the_tax_requirements(requirements:dict, person:Person, converter:dict):
+    requirements = requirements.copy()
+    requirements.pop(TaxRequirement.TaxRequirementsConfiguration)
+    if any(meet_a_given_tax_requirement(requirement, person, converter) for requirement in requirements.values()):
+        return True
+def meets_all_tax_requirements(requirements:dict, person:Person, converter:dict):
+    meets_requirements = True
+    while meets_requirements:
+        for requirement_name, requirement in requirements.items():
+            if requirement_name != TaxRequirement.TaxRequirementsConfiguration:
+                if not meet_a_given_tax_requirement(requirement, person, converter):
+                    meets_requirements = False
+        break
+    return meets_requirements
+def meet_a_given_tax_requirement(requirement:dict, person:Person, converter:dict):
+    value_in_question = requirement[TaxRequirement.ValueInQuestion]
+    comparison_value = requirement[TaxRequirement.ComparisonValue]
+    comparison_operator = requirement[TaxRequirement.ComparisonOperator]
+    if isinstance(value_in_question, dict):
+        value_in_question = calculate_smart_values_from_dictionary(value_in_question, person, converter)
+    elif isinstance(value_in_question, VPerson):
+        value_in_question = vperson_to_person_attribute(value_in_question, person, converter)
+    if isinstance(comparison_value, dict):
+        comparison_value = calculate_smart_values_from_dictionary(comparison_value, person, converter)
+    elif isinstance(comparison_value, VPerson):
+        comparison_value = vperson_to_person_attribute(comparison_value, person, converter)
+    if comparison_operator == ComparisonOperator.Equal:
+        if value_in_question == comparison_value:
+            return True
+    elif comparison_operator == ComparisonOperator.NotEqual:
+        if value_in_question != comparison_value:
+            return True
+    elif comparison_operator == ComparisonOperator.GreaterThan:
+        if value_in_question > comparison_value:
+            return True
+    elif comparison_operator == ComparisonOperator.LessThan:
+        if value_in_question < comparison_value:
+            return True
+    elif comparison_operator == ComparisonOperator.GreaterOrEqual:
+        if value_in_question >= comparison_value:
+            return True
+    elif comparison_operator == ComparisonOperator.LessOrEqual:
+        if value_in_question <= comparison_value:
+            return True
+
+    return False
+def is_a_smart_value(something):
+    if isinstance(something, dict):
+        smart_a = something.get(Values.SmartValueA)
+        smart_b = something.get(Values.SmartValueB)
+        operation = something.get(Values.InterValuesOperation)
+        if verify_smart_values_integrity(smart_a, smart_b, operation):
+            return True
+def is_valid_and_safe_smart_values(something):
+    if isinstance(something, dict):
+        smart_a = something.get(Values.SmartValueA)
+        smart_b = something.get(Values.SmartValueB)
+        operation = something.get(Values.InterValuesOperation)
+        if verify_smart_values_integrity(smart_a, smart_b, operation) and verify_smart_values_safety(smart_a, smart_b, operation):
+            return True
 def find_bracket(agi, brackets:dict, highest_bracket:int):
     bracket = highest_bracket
     while bracket > 1:
@@ -2073,8 +2367,15 @@ def apply_rate(brackets ,bracket, rates, agi):
 def process_taxes(taxes:dict, person:Person, converter:dict):
     taxes_output = {}
     for tax in taxes.values():
-        tax_name = str(tax[TaxVariables.Configurations][Configurations.TaxName]).replace("StandardTaxName.", "")
-        tax_value = calculate_tax(tax, person, converter)
+        tax_name = str(tax[TaxVariables.TaxConfigurations][Configurations.TaxName]).replace("StandardTaxName.", "")
+        have_requirements = tax[TaxVariables.TaxConfigurations][Configurations.TaxHaveRequirements]
+        if have_requirements:
+            if meets_tax_requirements_according_to_its_rules(tax, person, converter):
+                tax_value = calculate_tax(tax, person, converter)
+            else:
+                tax_value = "Tax Requirements not met."
+        else:
+            tax_value = calculate_tax(tax, person, converter)
         taxes_output[tax_name] = tax_value
     return taxes_output
 def calculate_tax_cap(cap:dict, person, converter):
@@ -2126,6 +2427,33 @@ if __name__ == '__main__':
     setattr(p, "private_cash_donations", Money(Decimal("10000000")))  # $100,000
     setattr(p, "investment_interest_expense", Liability(Decimal("12000000")))  # $120,000
     setattr(p, "total_debt_based_investment_earnings", Money(Decimal("8000000")))  # $80,000 (caps investment deduction)
+    test_item = {
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
+                    ItemItemization.DeductibleValue: VPerson.VMortgageInterest,
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.ItemizationCaps:{
+                        1: {
+                        ItemItemization.LimitType: LimitType.UpperLimit,
+                        ItemItemization.ItemizationCapType: ItemizationCapType.FixedCap,
+                        Values.FixedValue: Money(Decimal("75000000")),
+                        },
+                    },
+                    ItemItemization.Note: "Mortgages taken before 2018 have a cap of 1M, while after 2018 is capped at 750k.",
+                }
+    # print(p.federal_final_agi)
+    # reqs = {
+    #         1: {
+    #             TaxRequirement.ValueInQuestion: VPerson.VGrossIncome,
+    #             TaxRequirement.ComparisonValue: Money(Decimal("100000000")),
+    #             TaxRequirement.ComparisonOperator: ComparisonOperator.GreaterOrEqual,
+    #         },
+    #     }
+    # random_tax = {
+    #     TaxVariables.TaxRequirements: reqs
+    # }
+    # print(meets_tax_requirements(random_tax, p, vperson_to_person_attributes))
+    # print(nested_dictionary_reader(verify_variables_viability_and_integrity(standard_variables)))
+    print(nested_dictionary_reader(process_taxes(standard_variables[Variables.Taxes], p, vperson_to_person_attributes)))
     # print(p.federal_final_agi)
     # noinspection PyTypeChecker
     # print(nested_dictionary_reader(process_taxes(standard_variables[Variables.Taxes], p, vperson_to_person_attributes)))
@@ -2143,9 +2471,8 @@ if __name__ == '__main__':
     # print(getattr(p, "federal_final_agi"))
     from decimal import Decimal
 
-    a_result = verify_variables_viability_and_integrity(new_york_variables, True)
-    print(nested_dictionary_reader(a_result))
-
+    # a_result = verify_variables_viability_and_integrity(new_york_variables, True)
+    # print(nested_dictionary_reader(a_result))
     test_smart_values = {
         Values.SmartValueA: {
             Values.SmartValueA: {
