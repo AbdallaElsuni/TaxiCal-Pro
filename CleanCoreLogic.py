@@ -1,52 +1,22 @@
-import decimal, datetime, sys
+import collections
+
+from Cities import *
 from decimal import Decimal
+import decimal
+from datetime import datetime
+import datetime, sys
 from dateutil.relativedelta import relativedelta
+import json
+from LookUpInNestedDictionary import lookup_values_in_nested
+# noinspection PyUnresolvedReferences
+from NestedDictionariesReader import nested_dictionary_reader
+UnKnown = "UnKnown"
 
-from TaxiCal.TaxiCalEnums import TaxVariables
+# Enums
 from TaxiCalCustomEnums import *
-from TaxiCalPro.NestedDictionariesReader import nested_dictionary_reader
-from TaxiCalPro.TaxiCalCustomEnums import TaxRequirement
+# Finance
 
 
-class Currency(str, Enum):
-    USD = "USD"
-    EUR = "EUR"
-    JPY = "JPY"
-    GBP = "GBP"
-    AUD = "AUD"
-    CAD = "CAD"
-    CHF = "CHF"
-    CNY = "CNY"
-    SEK = "SEK"
-    NZD = "NZD"
-    MXN = "MXN"
-    SGD = "SGD"
-    HKD = "HKD"
-    NOK = "NOK"
-    KRW = "KRW"
-    TRY = "TRY"
-    INR = "INR"
-    BRL = "BRL"
-    ZAR = "ZAR"
-    RUB = "RUB"
-    def __str__(self):
-        return self.name
-class PaymentStatus(str, Enum):
-    Paid = "Paid"
-    UnPaid = "UnPaid"
-    Capitalized = "Capitalized"
-    NotSpecified = "NotSpecified"
-    PartiallyPaid = "PartiallyPaid"
-    InterestOnly = "InterestOnly"
-    def __str__(self):
-        return self.name
-class MaritalStatus(str, Enum):
-    Single = "Single"
-    MarriedNonJoint = "MarriedNonJoint"
-    MarriedJoint = "MarriedJoint"
-    UnSpecified = "UnSpecified"
-    def __str__(self):
-        return self.name
 class StandardFinancialUnit:
     def __init__(self, amount=Decimal("0"), currency=Currency.USD):
         if amount >= Decimal("0"):
@@ -151,6 +121,9 @@ class StandardFinancialUnit:
         for currency, symbol in minor_symbols.items():
             if self.currency == currency:
                 return symbol
+    # noinspection PyMethodMayBeStatic
+    def max(self=None):
+        return StandardFinancialUnit(Decimal("Infinity"))
     def __str__(self):
         if self.minor is not None:
             if self.major > 0 or self.minor == 0:
@@ -302,6 +275,9 @@ class Money(StandardFinancialUnit):
                     raise ValueError("Liability is greater than fund.")
     def __repr__(self):
         return f"Money(Decimal('{self.amount}'))"
+    # noinspection PyMethodMayBeStatic
+    def max(self=None):
+        return Money(Decimal("Infinity"))
 class Liability(StandardFinancialUnit):
     def __init__(self, amount=Decimal("0"), currency=Currency.USD, payment_status=PaymentStatus.UnPaid):
         super().__init__(amount, currency)
@@ -311,1111 +287,69 @@ class Liability(StandardFinancialUnit):
         self.status = PaymentStatus.Paid
 class Tax(Liability):
     pass
-from TaxiCal.LookUpInNestedDictionary import lookup_values_in_nested
-def str_to_object(string, enums_list:list):
-    financial_units_markers = {
-        "MoneyInCents ": Money,
-        "TaxInCents ": Tax,
-        "LiabilityInCents ": Liability,
-    }
-    if isinstance(string, str):
-        for marker, cls in financial_units_markers.items():
-            if marker in string:
-                stripped_string = string.replace(marker, "")
-                try:
-                    return cls(Decimal(stripped_string))
-                except decimal.InvalidOperation:
-                    pass
-                except  ValueError:
-                    return "Negative Financial unit crab."
-        if "Decimal " in string:
-            stripped_string = string.replace("Decimal ", "")
-            try:
-                return Decimal(stripped_string)
-            except decimal.InvalidOperation:
-                pass
-        elif "ThisIsADateTimeObject" in string:
-            the_iso_format = string.replace("ThisIsADateTimeObject", "")
-            return datetime.datetime.fromisoformat(the_iso_format)
-        elif string.isdigit():
-            return int(string)
-        for an_enum in enums_list:
-            try:
-                return an_enum[string]
-            except KeyError:
-                pass
-        return string
-def dict_to_object(dictionary, enums_list):
-    if dictionary.get("ThisKeyIsReservedForTypesOnly") == "relativedelta":
-        dictionary.pop("ThisKeyIsReservedForTypesOnly")
-        valid_keys = {
-            "years", "months", "days", "hours", "minutes", "seconds", "microseconds",
-            "leapdays", "weeks", "year", "month", "day", "hour", "minute", "second",
-            "microsecond", "yearday", "weekday", "nth"
-        }
-        filtered_data = {key: its_value for key, its_value in dictionary.items() if key in valid_keys}
-        try:
-            return relativedelta(**filtered_data)
-        except TypeError:
-            return dictionary
-    if isinstance(dictionary, dict):
-        keys_list = list(dictionary.keys())
-        for key in keys_list:
-            dictionary[str_to_object(key, enums_list)] = dictionary.pop(key)
-        for key, value in dictionary.items():
-            if isinstance(value, str):
-                dictionary[key] = str_to_object(value, enums_list)
-            elif isinstance(value, dict):
-                dictionary[key] = dict_to_object(value, enums_list)
-    return dictionary
-def list_to_object(a_list, enums_list):
-    if isinstance(a_list, list):
-        for i in range(len(a_list)):
-            if isinstance(a_list[i], str):
-                a_list[i] = str_to_object(a_list[i], enums_list)
-            elif isinstance(a_list[i], dict):
-                a_list[i] = dict_to_object(a_list[i], enums_list)
-            elif isinstance(a_list[i], list):
-                a_list[i] = list_to_object(a_list[i], enums_list)
-        return a_list
-def restore_objects(something, enums_list):
-    if isinstance(something, str):
-        return str_to_object(something, enums_list)
-    elif isinstance(something, dict):
-        return dict_to_object(something, enums_list)
-    elif isinstance(something, list):
-        return list_to_object(something, enums_list)
-def smart_serializer(obj):
-    if isinstance(obj, Decimal):
-        return f"Decimal {obj}"
-    elif isinstance(obj, Money):
-        return f"MoneyInCents {obj.amount}"
-    elif isinstance(obj, Tax):
-        return f"TaxInCents {obj.amount}"
-    elif isinstance(obj, Liability):
-        return f"LiabilityInCents {obj.amount}"
-    elif isinstance(obj, relativedelta):
-        relativedelta_data = obj.__dict__.copy()
-        relativedelta_data["ThisKeyIsReservedForTypesOnly"] = "relativedelta"
-        return relativedelta_data
-    elif isinstance(obj, datetime.datetime):
-        the_iso_format = obj.isoformat()
-        return f'''ThisIsADateTimeObject{the_iso_format}'''
-    else:
-        raise TypeError(f"Not serializable, bro, type is {type(obj)}")
-UnKnown = 'UnKnown'
-all_enums = [Currency,
-             PaymentStatus,
-             MaritalStatus,
-             State,
-             Variables,
-             Configurations,
-             TaxationType,
-             TaxVariables, TaxBenefits,
-             Deduction,
-             VerifierConfigurations,
-             AdjustedIncomeSource,
-             Itemization,
-             ItemItemization,
-             ItemizationCapType,
-             Values,
-             VPerson,
-             InterValuesOperation,
-             LimitType,
-             TaxNameType,
-             StandardTaxName,
-             ]
-standard_variables = {
-    Variables.Configurations: {
-        Configurations.VerifierConfigurations: {
-            VerifierConfigurations.RequiredVerifierVersion: 1,
-            VerifierConfigurations.SupportsForwardCompatibility: True,
-            VerifierConfigurations.SupportsBackwardCompatibility: False,
-        },
-        Configurations.VariablesType: VariablesType.FederalVariables,
-        Configurations.LastUpdated: datetime.datetime(2025,3,18)
-    },
-    Variables.Taxes: {
-        1: {
-            TaxVariables.TaxConfigurations: {
-                Configurations.TaxNameType: TaxNameType.StandardName,
-                Configurations.TaxName: StandardTaxName.FederalIncomeTax,
-                Configurations.TaxationType: TaxationType.ProgressiveRate,
-                Configurations.TaxBaseType: TaxBaseType.VPersonBase,
-                Configurations.TaxBase: VPerson.VFederalFinalAGI,
-                Configurations.TheFlatRate: Decimal("0.05"), # will be ignored since taxation type is set to progressive.
-                Configurations.HighestBracketCeiling: 7,
-                Configurations.TheFixedAmount: Money(Decimal("7987654")), # will be ignored since taxation type is set to progressive.
-                Configurations.HaveCap: False,
-                Configurations.TaxHaveRequirements: False,
-                Configurations.AdjustedIncomeSource: None, # Redundant #ForRemoval
-            },
-            TaxVariables.BracketCeilings: {
-                MaritalStatus.Single: {
-                    1: Money(Decimal("1192500")),
-                    2: Money(Decimal("4847500")),
-                    3: Money(Decimal("10335000")),
-                    4: Money(Decimal("19730000")),
-                    5: Money(Decimal("25052500")),
-                    6: Money(Decimal("62635000")),
-                    7: Money(Decimal("Infinity")),
+class Deferral(StandardFinancialUnit):
+    def __init__(self, amount=Decimal("0"), date_issued:datetime = datetime.datetime.min, expiry_date:datetime = datetime.datetime.max, set_of_rules:dict=None):
+        super().__init__(amount)
+        if isinstance(date_issued, datetime):
+            self.issued = date_issued
+        else:
+            raise TypeError("date_issued is not of datetime class.")
+        if isinstance(expiry_date, datetime):
+            self.expiry = expiry_date
+        else:
+            raise TypeError("expiry_date is not of datetime class.")
+        if set_of_rules is None:
+            set_of_rules = {
+                DeferralRules.HaveUseItOrLoseItAnnualAllocation: True,
+                DeferralRules.OneTimeUse: False,
+                DeferralRules.AnnualAllocation: {
+                    Values.SmartValueA: DynamicContextBasedValue.XDeferral,
+                    Values.SmartValueB: Decimal("0.2"),
+                    Values.InterValuesOperation: InterValuesOperation.Multiplication
                 },
-                MaritalStatus.MarriedJoint: {
-                    1: Money(Decimal("2385000")),
-                    2: Money(Decimal("9695000")),
-                    3: Money(Decimal("20670000")),
-                    4: Money(Decimal("39460000")),
-                    5: Money(Decimal("50105000")),
-                    6: Money(Decimal("75160000")),
-                    7: Money(Decimal("Infinity")),
-                },
-                MaritalStatus.MarriedNonJoint: {  # Copy of Single
-                    1: Money(Decimal("1192500")),
-                    2: Money(Decimal("4847500")),
-                    3: Money(Decimal("10335000")),
-                    4: Money(Decimal("19730000")),
-                    5: Money(Decimal("25052500")),
-                    6: Money(Decimal("62635000")),
-                    7: Money(Decimal("Infinity")),
-                },
-            },
-            TaxVariables.Rates: {
-                1: Decimal("0.10"),
-                2: Decimal("0.12"),
-                3: Decimal("0.22"),
-                4: Decimal("0.24"),
-                5: Decimal("0.32"),
-                6: Decimal("0.35"),
-                7: Decimal("0.37"),
-            },
-        },
-        2: {
-            TaxVariables.TaxConfigurations: {
-                Configurations.TaxNameType: TaxNameType.CustomName,
-                Configurations.TaxName: "The Tomato Tax",
-                Configurations.TaxationType: TaxationType.FixedAmount,
-                Configurations.TheFixedAmount: Tax(Decimal("15000")),
-                Configurations.HaveCap: False,
-                Configurations.TaxHaveRequirements: False,
-            },
-        },
-        3: {
-            TaxVariables.TaxConfigurations: {
-                Configurations.TaxNameType : TaxNameType.CustomName,
-                Configurations.TaxName: "Moda Fag",
-                Configurations.TaxationType: TaxationType.FlatRate,
-                Configurations.TaxBaseType: TaxBaseType.VPersonBase,
-                Configurations.TaxBase: VPerson.VFederalFinalAGI,
-                Configurations.TheFlatRate: Decimal("0.01"),
-                Configurations.HaveCap: True,
-                Configurations.TaxHaveRequirements: False,
-            },
-            TaxVariables.TaxCaps: {
-                1: {
-                    TaxCap.TaxLimitType: TaxLimitType.UpperLimitTaxCap,
-                    TaxCap.TaxCapType: TaxCapType.TaxFixedCap,
-                    Values.FixedValue: Money(Decimal("100000"))
-                },
-            },
-        },
-        4: {
-            TaxVariables.TaxConfigurations: {
-                Configurations.TaxNameType: TaxNameType.CustomName,
-                Configurations.TaxName: "First Tax with custom base",
-                Configurations.TaxationType: TaxationType.ProgressiveRate,
-                Configurations.HighestBracketCeiling: 7,
-                Configurations.TaxBaseType: TaxBaseType.CustomBase,
-                Configurations.TaxBase: {
-                    Values.SmartValueA: VPerson.VFederalFinalAGI,
-                    Values.SmartValueB: StandardFinancialUnit(Decimal("100000000")),
-                    Values.InterValuesOperation: InterValuesOperation.FloorSubtraction,
-                },
-                Configurations.TheFlatRate: Decimal("0.05"), # ignored
-                Configurations.HaveCap: False,
-                Configurations.TaxHaveRequirements: False,
-            },
-            TaxVariables.BracketCeilings: {
-                MaritalStatus.Single: {
-                    1: Money(Decimal("1192500")),
-                    2: Money(Decimal("4847500")),
-                    3: Money(Decimal("10335000")),
-                    4: Money(Decimal("19730000")),
-                    5: Money(Decimal("25052500")),
-                    6: Money(Decimal("62635000")),
-                    7: Money(Decimal("Infinity")),
-                },
-                MaritalStatus.MarriedJoint: {
-                    1: Money(Decimal("2385000")),
-                    2: Money(Decimal("9695000")),
-                    3: Money(Decimal("20670000")),
-                    4: Money(Decimal("39460000")),
-                    5: Money(Decimal("50105000")),
-                    6: Money(Decimal("75160000")),
-                    7: Money(Decimal("Infinity")),
-                },
-                MaritalStatus.MarriedNonJoint: {  # Copy of Single
-                    1: Money(Decimal("1192500")),
-                    2: Money(Decimal("4847500")),
-                    3: Money(Decimal("10335000")),
-                    4: Money(Decimal("19730000")),
-                    5: Money(Decimal("25052500")),
-                    6: Money(Decimal("62635000")),
-                    7: Money(Decimal("Infinity")),
-                },
-            },
-            TaxVariables.Rates: {
-                1: Decimal("0.10"),
-                2: Decimal("0.12"),
-                3: Decimal("0.22"),
-                4: Decimal("0.24"),
-                5: Decimal("0.32"),
-                6: Decimal("0.35"),
-                7: Decimal("0.37"),
-            },
-        },
-        5: {
-            TaxVariables.TaxRequirements: {
-                TaxRequirement.TaxRequirementsConfiguration:{
-                    TaxRequirementsConfiguration.RequirementsToMeet: RequirementsToMeet.MustMeetAll,
-                },
-                1: {
-                    TaxRequirement.ValueInQuestion: VPerson.VGrossIncome,
-                    TaxRequirement.ComparisonValue: Money(Decimal("100000000")),
-                    TaxRequirement.ComparisonOperator: ComparisonOperator.GreaterOrEqual,
-                },
-            },
-            TaxVariables.TaxConfigurations: {
-                Configurations.TaxNameType: TaxNameType.CustomName,
-                Configurations.TaxName: "The Pathetic Rich Tax",
-                Configurations.TaxationType: TaxationType.FixedAmount,
-                Configurations.TheFixedAmount: Tax(Decimal("15000")),
-                Configurations.HaveCap: False,
-                Configurations.TaxHaveRequirements: True,
-            },
-        },
-        6: {
-            TaxVariables.TaxRequirements: {
-                TaxRequirement.TaxRequirementsConfiguration:{
-                    TaxRequirementsConfiguration.RequirementsToMeet: RequirementsToMeet.MustMeetAll,
-                    TaxRequirementsConfiguration.SpecifiedRequirements: [[1]],
-                    TaxRequirementsConfiguration.SpecifiedRequirementsCount: 2,
-                },
-                1: {
-                    TaxRequirement.ValueInQuestion: VPerson.VGrossIncome,
-                    TaxRequirement.ComparisonValue: Money(Decimal("100000000")),
-                    TaxRequirement.ComparisonOperator: ComparisonOperator.GreaterOrEqual,
-                },
-                2: {
-                    TaxRequirement.ValueInQuestion: VPerson.VStatus,
-                    TaxRequirement.ComparisonValue: MaritalStatus.Single,
-                    TaxRequirement.ComparisonOperator: ComparisonOperator.Equal,
-                },
-                3: {
-                    TaxRequirement.ValueInQuestion: VPerson.VStatus,
-                    TaxRequirement.ComparisonValue: MaritalStatus.MarriedJoint,
-                    TaxRequirement.ComparisonOperator: ComparisonOperator.Equal,
-                }
-            },
-            TaxVariables.TaxConfigurations: {
-                Configurations.TaxNameType: TaxNameType.CustomName,
-                Configurations.TaxName: "Some tax multiple reqs",
-                Configurations.TaxationType: TaxationType.FixedAmount,
-                Configurations.TheFixedAmount: Tax(Decimal("15000")),
-                Configurations.HaveCap: False,
-                Configurations.TaxHaveRequirements: True,
-            },
-        },
-    },
-    Variables.TaxBenefits: {
-        TaxBenefits.Deduction:{
-            Deduction.StandardDeduction: {
-                MaritalStatus.Single: Money(Decimal("1500000")),
-                MaritalStatus.MarriedJoint: Money(Decimal("3000000")),
-                MaritalStatus.MarriedNonJoint: Money(Decimal("1500000")),
-            },
-            Deduction.Itemization:{
-                Itemization.MortgageInterest: {
-                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
-                    ItemItemization.DeductibleValue: VPerson.VMortgageInterest,
-                    ItemItemization.CapsAppliedCount: 1,
-                    ItemItemization.ItemizationCaps:{
-                        1: {
-                        ItemItemization.LimitType: LimitType.UpperLimit,
-                        ItemItemization.ItemizationCapType: ItemizationCapType.FixedCap,
-                        Values.FixedValue: Money(Decimal("75000000")),
-                        },
-                    },
-                    ItemItemization.Note: "Mortgages taken before 2018 have a cap of 1M, while after 2018 is capped at 750k.",
-                },
-                Itemization.MedicalAndDentalExpenses: {
-                    ItemItemization.DeductibleValue: VPerson.VMedicalExpenses,
-                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
-                    ItemItemization.CapsAppliedCount: 1,
-                    ItemItemization.ItemizationCaps:{
-                        1:{
-                            ItemItemization.LimitType: LimitType.LowerLimit,
-                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
-                            Values.SmartValueA: VPerson.VFederalBaseAGI,
-                            Values.SmartValueB: Decimal("0.075"),
-                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
-                            },
-                        },
-                    },
-                Itemization.PropertyTaxItemization: {
-                    ItemItemization.DeductibleValue: VPerson.VPropertyTaxes,
-                    ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
-                    ItemItemization.ReceiverCode: "SALT",
-                    ItemItemization.FeederSpecificCode: 0,
-                    ItemItemization.CapsAppliedCount: 0
-                },
-                Itemization.SALT: {
-                    # ItemItemization.DeductibleValue: VPerson.VSALT,
-                    ItemItemization.ItemItemizationType: ItemItemizationType.Receiver,
-                    ItemItemization.HaveBaseAGIDependentFeeders: False,
-                    ItemItemization.ReceivingCode: "SALT",
-                    ItemItemization.CapsAppliedCount: 1,
-                    ItemItemization.ItemizationCaps: {
-                        1: {
-                            ItemItemization.LimitType: LimitType.UpperLimit,
-                            ItemItemization.ItemizationCapType: ItemizationCapType.FixedCap,
-                            Values.FixedValue: Money(Decimal("1000000")),
-                        },
-                    },
-                },
-                Itemization.PublicCashDonations: {
-                    ItemItemization.DeductibleValue: VPerson.VPublicCashDonations,
-                    ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
-                    ItemItemization.ReceiverCode: "Donations",
-                    ItemItemization.CapsAppliedCount: 1,
-                    ItemItemization.FeederSpecificCode: 0,
-                    ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
-                    ItemItemization.ItemizationCaps: {
-                        1: {
-                            ItemItemization.LimitType: LimitType.UpperLimit,
-                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
-                            Values.SmartValueA: VPerson.VFederalBaseAGI,
-                            Values.SmartValueB: Decimal("0.6"),
-                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
-                        },
-                    },
-                },
-                Itemization.PrivateCashDonations: {
-                    ItemItemization.DeductibleValue: VPerson.VPrivateCashDonations,
-                    ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
-                    ItemItemization.ReceiverCode: "Donations",
-                    ItemItemization.FeederSpecificCode: 1,
-                    ItemItemization.CapsAppliedCount: 1,
-                    ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
-                    ItemItemization.ItemizationCaps: {
-                        1: {
-                            ItemItemization.LimitType: LimitType.UpperLimit,
-                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
-                            Values.SmartValueA: VPerson.VFederalBaseAGI,
-                            Values.SmartValueB: Decimal("0.3"),
-                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
-                        },
-                    },
-                },
-                Itemization.PublicNonCashDonations: {
-                    ItemItemization.CapsAppliedCount: 1,
-                    ItemItemization.DeductibleValue: VPerson.VPublicNonCashDonations,
-                    ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
-                    ItemItemization.ReceiverCode: "Donations",
-                    ItemItemization.FeederSpecificCode: 2,
-                    ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
-                    ItemItemization.ItemizationCaps: {
-                        1: {
-                            ItemItemization.LimitType: LimitType.UpperLimit,
-                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
-                            Values.SmartValueA: VPerson.VFederalBaseAGI,
-                            Values.SmartValueB: Decimal("0.3"),
-                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
-                        },
-                    },
-                    ItemItemization.Note: "Donation must be public, otherwise, it does not apply."
-                },
-                Itemization.PublicCapitalGainsDonations: {
-                    ItemItemization.DeductibleValue: VPerson.VPublicCapitalGainsDonations,
-                    ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
-                    ItemItemization.ReceiverCode: "Donations",
-                    ItemItemization.FeederSpecificCode: 3,
-                    ItemItemization.CapsAppliedCount: 1,
-                    ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
-                    ItemItemization.ItemizationCaps: {
-                        1: {
-                            ItemItemization.LimitType: LimitType.UpperLimit,
-                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
-                            Values.SmartValueA: VPerson.VFederalBaseAGI,
-                            Values.SmartValueB: Decimal("0.3"),
-                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
-                        },
-                    },
-                },
-                Itemization.PrivateCapitalGainsDonations: {
-                    ItemItemization.DeductibleValue: VPerson.VPrivateCapitalGainsDonations,
-                    ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
-                    ItemItemization.ReceiverCode: "Donations",
-                    ItemItemization.FeederSpecificCode: 4,
-                    ItemItemization.CapsAppliedCount: 1,
-                    ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
-                    ItemItemization.ItemizationCaps: {
-                        1: {
-                            ItemItemization.LimitType: LimitType.UpperLimit,
-                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
-                            Values.SmartValueA: VPerson.VFederalBaseAGI,
+                DeferralRules.OffsetTargets: {
+                    1: {
+                        DeferralOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
+                        DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.DynamicOffsetLimit,
+                        DeferralOffsetTarget.OffsetLimit: {
+                            Values.SmartValueA: VPerson.VCapitalGain,
                             Values.SmartValueB: Decimal("0.2"),
-                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication
                         },
                     },
-                },
-                Itemization.InvestmentInterestExpense: {
-                    ItemItemization.DeductibleValue: VPerson.VInvestmentInterestExpense,
-                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
-                    ItemItemization.CapsAppliedCount: 1,
-                    ItemItemization.CarryForwardTimeLimit: datetime.datetime.max,
-                    ItemItemization.ItemizationCaps: {
-                        1: {
-                            ItemItemization.LimitType: LimitType.UpperLimit,
-                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
-                            Values.DynamicValue: VPerson.VTotalDebtBasedInvestmentEarnings,
-                        },
+                    2: {
+                        DeferralOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
+                        DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.FixedOffsetLimit,
+                        DeferralOffsetTarget.OffsetLimit: Money(Decimal("300000")),
                     },
                 },
-                Itemization.TotalDonations: {
-                    # ItemItemization.DeductibleValue: VPerson.VInvestmentInterestExpense,
-                    ItemItemization.ItemItemizationType: ItemItemizationType.Receiver,
-                    ItemItemization.ReceivingCode: "Donations",
-                    ItemItemization.HaveBaseAGIDependentFeeders: True,
-                    ItemItemization.CapsAppliedCount: 1,
-                    ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
-                    ItemItemization.ItemizationCaps: {
-                        1: {
-                            ItemItemization.LimitType: LimitType.UpperLimit,
-                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
-                            Values.SmartValueA: VPerson.VFederalBaseAGI,
-                            Values.SmartValueB: Decimal("0.6"),
-                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
-                        },
-                    },
-                },
-            },
-        },
-        TaxBenefits.Exemption:{
-            MaritalStatus.Single: Money(),
-            MaritalStatus.MarriedJoint: Money(),
-            MaritalStatus.MarriedNonJoint: Money(),
-        },
-    },
-}
-standard_user_preference = {
-    Preference.TaxPreference:{
-        TaxPreference.PreferredDeductionType: {
-            Jurisdiction.Federal: PreferredDeductionType.PreferAuto,
-            Jurisdiction.State: PreferredDeductionType.PreferAuto,
-            Jurisdiction.County: PreferredDeductionType.PreferAuto,
-            Jurisdiction.Local: PreferredDeductionType.PreferAuto,
-            Jurisdiction.City: PreferredDeductionType.PreferAuto,
-            Jurisdiction.Municipal: PreferredDeductionType.PreferAuto,
-        },
-    },
-    Preference.SafetyPreference: SafetyPreference.PreferFollowingUltraSafety,
-}
-california_variables = {
-    Variables.Configurations: {
-        Configurations.VerifierConfigurations: {
-            VerifierConfigurations.RequiredVerifierVersion: 1,
-            VerifierConfigurations.SupportsForwardCompatibility: True,
-            VerifierConfigurations.SupportsBackwardCompatibility: False,
-        },
-        Configurations.VariablesType: VariablesType.StateVariables,
-        Configurations.LastUpdated: datetime.datetime(2025, 3, 18)
-    },
-    Variables.Taxes: {
-        1: {
-            TaxVariables.TaxConfigurations: {
-                Configurations.TaxNameType: TaxNameType.StandardName,
-                Configurations.TaxName: StandardTaxName.StateIncomeTax,
-                Configurations.TaxationType: TaxationType.ProgressiveRate,
-                Configurations.TaxBase: VPerson.VStateFinalAGI,
-                Configurations.AdjustedIncomeSource: AdjustedIncomeSource.FromState,
-            },
-            TaxVariables.BracketCeilings: {
-                MaritalStatus.Single: {
-                    1: Money(Decimal("932500")),
-                    2: Money(Decimal("2210700")),
-                    3: Money(Decimal("3489200")),
-                    4: Money(Decimal("4843500")),
-                    5: Money(Decimal("6121400")),
-                    6: Money(Decimal("31268600")),
-                    7: Money(Decimal("37522100")),
-                    8: Money(Decimal("62536900")),
-                    9: Money(Decimal("Infinity")),
-                },
-                MaritalStatus.MarriedJoint: {
-                    1: Money(Decimal("1865000")),
-                    2: Money(Decimal("4421400")),
-                    3: Money(Decimal("6978400")),
-                    4: Money(Decimal("9687000")),
-                    5: Money(Decimal("12242800")),
-                    6: Money(Decimal("62537200")),
-                    7: Money(Decimal("75044200")),
-                    8: Money(Decimal("125073800")),
-                    9: Money(Decimal("Infinity")),
-                },
-                MaritalStatus.MarriedNonJoint: {  # Copy of Single
-                    1: Money(Decimal("932500")),
-                    2: Money(Decimal("2210700")),
-                    3: Money(Decimal("3489200")),
-                    4: Money(Decimal("4843500")),
-                    5: Money(Decimal("6121400")),
-                    6: Money(Decimal("31268600")),
-                    7: Money(Decimal("37522100")),
-                    8: Money(Decimal("62536900")),
-                    9: Money(Decimal("Infinity")),
-                },
-            },
-            TaxVariables.Rates: {
-                1: Decimal("0.01"),
-                2: Decimal("0.02"),
-                3: Decimal("0.04"),
-                4: Decimal("0.06"),
-                5: Decimal("0.08"),
-                6: Decimal("0.093"),
-                7: Decimal("0.103"),
-                8: Decimal("0.113"),
-                9: Decimal("0.123"),
-            },
-        },
-    },
-    Variables.TaxBenefits: {
-        TaxBenefits.Deduction: {
-            Deduction.StandardDeduction: {
-                MaritalStatus.Single: Money(Decimal("554000")),
-                MaritalStatus.MarriedJoint: Money(Decimal("1108000")),
-                MaritalStatus.MarriedNonJoint: Money(Decimal("554000")),
-            },
-            Deduction.Itemization: {
-                Itemization.MortgageInterest: {
-                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
-                    ItemItemization.DeductibleValue: VPerson.VMortgageInterest,
-                    ItemItemization.CapsAppliedCount: 1,
-                    ItemItemization.ItemizationCaps: {
-                        1: {
-                            ItemItemization.LimitType: LimitType.UpperLimit,
-                            ItemItemization.ItemizationCapType: ItemizationCapType.FixedCap,
-                            Values.FixedValue: Money(Decimal("100000000")),
-                        },
-                    },
-                    ItemItemization.Note: "California allows mortgage interest deduction up to $1M, unlike federal's $750k cap.",
-                },
-                Itemization.MedicalAndDentalExpenses: {
-                    ItemItemization.DeductibleValue: VPerson.VMedicalExpenses,
-                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
-                    ItemItemization.CapsAppliedCount: 1,
-                    ItemItemization.ItemizationCaps: {
-                        1: {
-                            ItemItemization.LimitType: LimitType.LowerLimit,
-                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
-                            Values.SmartValueA: VPerson.VStateBaseAGI,
-                            Values.SmartValueB: Decimal("0.075"),
-                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
-                        },
-                    },
-                },
-            },
-        },
-        TaxBenefits.Exemption: {
-            MaritalStatus.Single: Money(Decimal("12900")),
-            MaritalStatus.MarriedJoint: Money(Decimal("25800")),
-            MaritalStatus.MarriedNonJoint: Money(Decimal("12900")),
-        },
-    },
-}
-new_york_variables = {
-    Variables.Configurations: {
-        Configurations.VerifierConfigurations: {
-            VerifierConfigurations.RequiredVerifierVersion: 1,
-            VerifierConfigurations.SupportsForwardCompatibility: True,
-            VerifierConfigurations.SupportsBackwardCompatibility: False,
-        },
-        Configurations.VariablesType: VariablesType.StateVariables,
-        Configurations.LastUpdated: datetime.datetime(2025, 3, 31)
-    },
-    Variables.Taxes: {
-        1: {
-            TaxVariables.TaxConfigurations: {
-                Configurations.TaxNameType: TaxNameType.StandardName,
-                Configurations.TaxName: StandardTaxName.StateIncomeTax,
-                Configurations.TaxationType: TaxationType.ProgressiveRate,
-                Configurations.TaxBase: VPerson.VStateFinalAGI,
-                Configurations.AdjustedIncomeSource: AdjustedIncomeSource.FromState,
-            },
-            TaxVariables.BracketCeilings: {
-                MaritalStatus.Single: {
-                    1: Money(Decimal("850000")),
-                    2: Money(Decimal("1170000")),
-                    3: Money(Decimal("1390000")),
-                    4: Money(Decimal("2140000")),
-                    5: Money(Decimal("8065000")),
-                    6: Money(Decimal("21540000")),
-                    7: Money(Decimal("107755000")),
-                    8: Money(Decimal("500000000")),
-                    9: Money(Decimal("Infinity")),
-                },
-                MaritalStatus.MarriedJoint: {
-                    1: Money(Decimal("1715000")),
-                    2: Money(Decimal("2360000")),
-                    3: Money(Decimal("2790000")),
-                    4: Money(Decimal("4280000")),
-                    5: Money(Decimal("16155000")),
-                    6: Money(Decimal("32320000")),
-                    7: Money(Decimal("215400000")),
-                    8: Money(Decimal("500000000")),
-                    9: Money(Decimal("Infinity")),
-                },
-                MaritalStatus.MarriedNonJoint: {  # Copy of Single
-                    1: Money(Decimal("850000")),
-                    2: Money(Decimal("1170000")),
-                    3: Money(Decimal("1390000")),
-                    4: Money(Decimal("2140000")),
-                    5: Money(Decimal("8065000")),
-                    6: Money(Decimal("21540000")),
-                    7: Money(Decimal("107755000")),
-                    8: Money(Decimal("500000000")),
-                    9: Money(Decimal("Infinity")),
-                },
-            },
-            TaxVariables.Rates: {
-                1: Decimal("0.04"),
-                2: Decimal("0.045"),
-                3: Decimal("0.0525"),
-                4: Decimal("0.059"),
-                5: Decimal("0.0597"),
-                6: Decimal("0.0633"),
-                7: Decimal("0.0685"),
-                8: Decimal("0.103"),
-                9: Decimal("0.109"),
-            },
-        },
-    },
-    Variables.TaxBenefits: {
-        TaxBenefits.Deduction: {
-            Deduction.StandardDeduction: {
-                MaritalStatus.Single: Money(Decimal("800000")),
-                MaritalStatus.MarriedJoint: Money(Decimal("1605000")),
-                MaritalStatus.MarriedNonJoint: Money(Decimal("800000")),
-            },
-            Deduction.Itemization: {
-                Itemization.MortgageInterest: {
-                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
-                    ItemItemization.DeductibleValue: VPerson.VMortgageInterest,
-                    ItemItemization.CapsAppliedCount: 1,
-                    ItemItemization.ItemizationCaps: {
-                        1: {
-                            ItemItemization.LimitType: LimitType.UpperLimit,
-                            ItemItemization.ItemizationCapType: ItemizationCapType.FixedCap,
-                            Values.FixedValue: Money(Decimal("10000000")),
-                        },
-                    },
-                },
-                Itemization.MedicalAndDentalExpenses: {
-                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
-                    ItemItemization.DeductibleValue: VPerson.VMedicalExpenses,
-                    ItemItemization.CapsAppliedCount: 1,
-                    ItemItemization.ItemizationCaps: {
-                        1: {
-                            ItemItemization.LimitType: LimitType.LowerLimit,
-                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
-                            Values.SmartValueA: VPerson.VFederalBaseAGI,
-                            Values.SmartValueB: Decimal("0.075"),
-                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
-                        },
-                    },
-                },
-                Itemization.CharitableContributions: {
-                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
-                    ItemItemization.DeductibleValue: VPerson.VCharitableContributions,
-                    ItemItemization.CapsAppliedCount: 1,
-                    ItemItemization.ItemizationCaps: {
-                        1: {
-                            ItemItemization.LimitType: LimitType.UpperLimit,
-                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
-                            Values.SmartValueA: VPerson.VFederalBaseAGI,
-                            Values.SmartValueB: Decimal("0.60"),
-                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
-                        },
-                    },
-                },
-            },
-        },
-        TaxBenefits.Exemption: {
-            MaritalStatus.Single: Money(Decimal("0")),  # NY does not have a personal exemption
-            MaritalStatus.MarriedJoint: Money(Decimal("0")),
-            MaritalStatus.MarriedNonJoint: Money(Decimal("0")),
-        },
-    },
-}
-default_variables_index = {
-    LocalIndex.FederalVariablesIndex: standard_variables,
-    LocalIndex.StatesVariablesIndex: {
-        State.California: california_variables,
-        State.NewYork: new_york_variables
-    },
-    LocalIndex.CitiesVariablesIndex: {},
-    LocalIndex.MunicipalitiesVariablesIndex: {},
-}
-vperson_to_person_attributes = {
-    VPerson.VStatus: {
-        "attribute name": "status",
-        "default value": MaritalStatus.UnSpecified,
-    },
-    VPerson.VFederalFinalAGI: {
-        "attribute name": "federal_final_agi",
-        "default value": Money()
-    },
-    VPerson.VFederalBaseAGI:{
-        "attribute name": "federal_base_agi",
-        "default value": Money()
-    },
-    VPerson.VStateFinalAGI: {
-        "attribute name": "federal_final_agi",
-        "default value": Money()
-    },
-    VPerson.VStateBaseAGI:{
-        "attribute name": "federal_base_agi",
-        "default value": Money()
-    },
-    VPerson.VTotalItemized: {
-        "attribute name": "total_itemized",
-        "default value": Money()
-    },
-    VPerson.VTotalInvestmentExpense: {
-        "attribute name": "total_investment_expense",
-        "default value": Liability()
-    },
-    VPerson.VMedicalExpenses: {
-        "attribute name": "medical_expenses",
-        "default value": Liability()
-    },
-    VPerson.VCharitableContributions: {
-        "attribute name": "charitable_contributions",
-        "default value": Money()
-    },
-    VPerson.VMortgageInterest: {
-        "attribute name": "mortgage_interest",
-        "default value": Liability()
-    },
-    VPerson.VPropertyTaxes: {
-        "attribute name": "property_taxes",
-        "default value": Tax()
-    },
-    VPerson.VStudentLoanInterest: {
-        "attribute name": "student_loan_interest",
-        "default value": Liability()
-    },
-    VPerson.VJobExpenses: {
-        "attribute name": "job_expenses",
-        "default value": Liability()
-    },
-    VPerson.VEducationExpenses: {
-        "attribute name": "education_expenses",
-        "default value": Liability()
-    },
-    VPerson.VRetirementContributions: {
-        "attribute name": "retirement_contributions",
-        "default value": Money()
-    },
-    VPerson.VChildcareExpenses: {
-        "attribute name": "childcare_expenses",
-        "default value": Liability()
-    },
-    VPerson.VHealthInsurancePremiums: {
-        "attribute name": "health_insurance_premiums",
-        "default value": Money()
-    },
-    VPerson.VBusinessExpenses: {
-        "attribute name": "business_expenses",
-        "default value": Liability()
-    },
-    VPerson.VRentalExpenses: {
-        "attribute name": "rental_expenses",
-        "default value": Liability()
-    },
-    VPerson.VAlimonyPaid: {
-        "attribute name": "alimony_paid",
-        "default value": Money()
-    },
-    VPerson.VGamblingLosses: {
-        "attribute name": "gambling_losses",
-        "default value": Money()
-    },
-    VPerson.VMovingExpenses: {
-        "attribute name": "moving_expenses",
-        "default value": Liability()
-    },
-    VPerson.VPublicCashDonations: {
-        "attribute name": "public_cash_donations",
-        "default value": Money()
-    },
-    VPerson.VPrivateCashDonations: {
-        "attribute name": "private_cash_donations",
-        "default value": Money()
-    },
-    VPerson.VPublicNonCashDonations: {
-        "attribute name": "public_non_cash_donations",
-        "default value": Money()
-    },
-    VPerson.VPublicCapitalGainsDonations: {
-        "attribute name": "public_capital_gains_donations",
-        "default value": Money()
-    },
-    VPerson.VPrivateCapitalGainsDonations: {
-        "attribute name": "private_capital_gains_donations",
-        "default value": Money()
-    },
-    VPerson.VInvestmentInterestExpense: {
-        "attribute name": "investment_interest_expense",
-        "default value": Liability()
-    },
-    VPerson.VSALT: {
-        "attribute name": "SALT",
-        "default value": Tax()
-    },
-    VPerson.VTotalInvestmentInterestExpense: {
-        "attribute name": "total_investment_interest_expense",
-        "default value": Liability()
-    },
-    VPerson.VTotalDebtBasedInvestmentEarnings: {
-        "attribute name": "total_debt_based_investment_earnings",
-        "default value": Money()
-    },
-    VPerson.VGrossIncome: {
-        "attribute name": "income",
-        "default value": Money()
-    },
-    VPerson.VAdjustedIncome: {
-        "attribute name": "adjusted_income",
-        "default value": Money()
-    },
-    VPerson.VPropertyValue: {
-        "attribute name": "property_value",
-        "default value": Money()
-    },
-    VPerson.VWealth: {
-        "attribute name": "wealth",
-        "default value": Money()
-    },
-    VPerson.VCapitalGain: {
-        "attribute name": "capital_gain",
-        "default value": Money()
-    },
-    VPerson.VCustomBase: {
-        "attribute name": "custom_base",
-        "default value": Money()
-    }
-}
-
-class Person:
-    def __init__(self, first_name:str="", last_name:str="", marital_status:MaritalStatus=MaritalStatus.UnSpecified, age:int=0, income:Money=Money(Decimal("0")), state:State=State.UnSpecifiedState,
-                 attributes=None, variables_index=None, preference_settings=None):
-        if attributes is None:
-            attributes = {}
-        if variables_index is None:
-            variables_index = default_variables_index
-        if preference_settings is None:
-            preference_settings = standard_user_preference
-        self.first = first_name
-        self.last = last_name
-        self.status = marital_status
-        self.age = age
-        self.income = income
-        self.state = state
-        self.variables_index = variables_index
-        self.preference = preference_settings
-        self.slot0 = None
-        self.slot1 = None
-        self.slot2 = None
-        viable_optional_attributes = {
-            "total_itemized": Money,  # Always present
-            "charitable_contributions": Money,
-            "public_cash_donations": Money,
-            "public_non_cash_donations": Money,
-            "private_cash_donations": Money,
-            "public_capital_gains_donations": Money,
-            "private_capital_gains_donations": Money,
-            "gambling_losses": Money,
-            "alimony_paid": Money,
-            "retirement_contributions": Money,
-            "health_insurance_premiums": Money,
-            "total_debt_based_investment_earnings": Money,
-            "medical_expenses": Liability,
-            "childcare_expenses": Liability,
-            "job_expenses": Liability,
-            "education_expenses": Liability,
-            "student_loan_interest": Liability,
-            "mortgage_interest": Liability,
-            "total_investment_expense": Liability,
-            "investment_interest_expense": Liability,
-            "business_expenses": Liability,
-            "rental_expenses": Liability,
-            "moving_expenses": Liability,  # Limited eligibility under current laws
-            "property_taxes": Tax,
-            "SALT": Tax,
-        }
-        for key, its_value in attributes.items():
-            if key in viable_optional_attributes and type(its_value) == viable_optional_attributes[key]:
-                setattr(self, key, its_value)
-    @property
-    def federal_variables(self):
-        return self.variables_index[LocalIndex.FederalVariablesIndex]
-    @property
-    def state_variables(self):
-        # noinspection PyTypeChecker
-        return self.variables_index[LocalIndex.StatesVariablesIndex][self.state]
-    @property
-    def city_variables(self):
-        return self.variables_index[LocalIndex.CitiesVariablesIndex]
-    @property
-    def municipal_variables(self):
-        return self.variables_index[LocalIndex.MunicipalitiesVariablesIndex]
-    @property
-    def federal_standardized_deductions(self):
-        return calculate_tax_benefits_when_standardized(self, self.federal_variables)
-    @property
-    def federal_itemized_deductions(self):
-        return calculate_tax_benefits_when_itemizing(self, self.federal_variables)
-    @property
-    def federal_deductions(self):
-        preference = self.preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType][Jurisdiction.Federal]
-        if preference == PreferredDeductionType.PreferAuto:
-            return max(self.federal_standardized_deductions, self.federal_itemized_deductions)
-        elif preference == PreferredDeductionType.PreferStandardized:
-            return self.federal_standardized_deductions
-        elif preference == PreferredDeductionType.PreferItemized:
-            return self.federal_itemized_deductions
-    @property
-    def federal_base_agi(self):
-        # noinspection PyTypeChecker
-        items = self.federal_variables[Variables.TaxBenefits][TaxBenefits.Deduction][Deduction.Itemization]
-        pre_base_agi_itemization = calculate_pre_base_agi_itemization(items, self, vperson_to_person_attributes)
-        if self.income >= pre_base_agi_itemization:
-            return self.income - pre_base_agi_itemization
+            }
+        self.rules = set_of_rules
+    def money_format(self):
+        return super().__str__()
+    def __str__(self):
+        original = super().__str__()
+        return f"Worth: {original}, Issued: {self.issued}, Expiry: {self.expiry}"
+    def __repr__(self):
+        return f"A Deferral worth {self.amount}, issued {self.issued}, expires {self.expiry}"
+class TaxCredit(StandardFinancialUnit):
+    def __init__(self, amount=Decimal("0")):
+        super().__init__(amount)
+    def apply(self, tax):
+        if isinstance(tax, Tax) and tax.status == PaymentStatus.UnPaid:
+            if self.currency == tax.currency:
+                if self.amount >= tax.amount:
+                    self.amount -= tax.amount
+                    tax.paid()
         else:
-            return Money()
-    @property
-    def federal_final_agi(self):
-        if self.income >= self.federal_deductions:
-            return self.income - self.federal_deductions
-        else:
-            return Money()
+            raise NotImplementedError
 
-    @property
-    def state_standardized_deductions(self):
-        return calculate_tax_benefits_when_standardized(self, self.state_variables)
 
-    @property
-    def state_itemized_deductions(self):
-        return calculate_tax_benefits_when_itemizing(self, self.state_variables)
 
-    @property
-    def state_deductions(self):
-        preference = self.preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType][
-            Jurisdiction.State]
-        if preference == PreferredDeductionType.PreferAuto:
-            return max(self.state_standardized_deductions, self.state_itemized_deductions)
-        elif preference == PreferredDeductionType.PreferStandardized:
-            return self.state_standardized_deductions
-        elif preference == PreferredDeductionType.PreferItemized:
-            return self.state_itemized_deductions
+# Verification
 
-    @property
-    def state_base_agi(self):
-        # noinspection PyTypeChecker
-        items = self.state_variables[Variables.TaxBenefits][TaxBenefits.Deduction][Deduction.Itemization]
-        pre_base_agi_itemization = calculate_pre_base_agi_itemization(items, self, vperson_to_person_attributes)
-        if self.income >= pre_base_agi_itemization:
-            return self.income - pre_base_agi_itemization
-        else:
-            return Money()
 
-    @property
-    def state_final_agi(self):
-        if self.income >= self.state_deductions:
-            return self.income - self.state_deductions
-        else:
-            return Money()
 
-    @property
-    def city_standardized_deductions(self):
-        return calculate_tax_benefits_when_standardized(self, self.city_variables)
-
-    @property
-    def city_itemized_deductions(self):
-        return calculate_tax_benefits_when_itemizing(self, self.city_variables)
-
-    @property
-    def city_deductions(self):
-        preference = self.preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType][
-            Jurisdiction.State]
-        if preference == PreferredDeductionType.PreferAuto:
-            return max(self.city_standardized_deductions, self.city_itemized_deductions)
-        elif preference == PreferredDeductionType.PreferStandardized:
-            return self.city_standardized_deductions
-        elif preference == PreferredDeductionType.PreferItemized:
-            return self.city_itemized_deductions
-
-    @property
-    def city_base_agi(self):
-        # noinspection PyTypeChecker
-        items = self.city_variables[Variables.TaxBenefits][TaxBenefits.Deduction][Deduction.Itemization]
-        pre_base_agi_itemization = calculate_pre_base_agi_itemization(items, self, vperson_to_person_attributes)
-        if self.income >= pre_base_agi_itemization:
-            return self.income - pre_base_agi_itemization
-        else:
-            return Money()
-
-    @property
-    def city_final_agi(self):
-        if self.income >= self.city_deductions:
-            return self.income - self.city_deductions
-        else:
-            return Money()
-
-    @property
-    def municipal_standardized_deductions(self):
-        return calculate_tax_benefits_when_standardized(self, self.municipal_variables)
-
-    @property
-    def municipal_itemized_deductions(self):
-        return calculate_tax_benefits_when_itemizing(self, self.municipal_variables)
-
-    @property
-    def municipal_deductions(self):
-        preference = self.preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType][
-            Jurisdiction.State]
-        if preference == PreferredDeductionType.PreferAuto:
-            return max(self.municipal_standardized_deductions, self.municipal_itemized_deductions)
-        elif preference == PreferredDeductionType.PreferStandardized:
-            return self.municipal_standardized_deductions
-        elif preference == PreferredDeductionType.PreferItemized:
-            return self.municipal_itemized_deductions
-
-    @property
-    def municipal_base_agi(self):
-        # noinspection PyTypeChecker
-        items = self.municipal_variables[Variables.TaxBenefits][TaxBenefits.Deduction][Deduction.Itemization]
-        pre_base_agi_itemization = calculate_pre_base_agi_itemization(items, self, vperson_to_person_attributes)
-        if self.income >= pre_base_agi_itemization:
-            return self.income - pre_base_agi_itemization
-        else:
-            return Money()
-
-    @property
-    def municipal_final_agi(self):
-        if self.income >= self.municipal_deductions:
-            return self.income - self.municipal_deductions
-        else:
-            return Money()
 def verify_variables_viability_and_integrity(variables:dict, break_for_ultra_safety=False):
     result = {
         CheckResults.ViabilityForChecking: False,
@@ -1515,15 +449,15 @@ def verify_a_tax_integrity(tax:dict, break_for_ultra_safety=False):
     while True:
         tax_name_type = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.TaxNameType)
         tax_name = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.TaxName)
-        if not isinstance(tax_name_type, TaxNameType):
+        if not isinstance(tax_name_type, NameType):
             result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Tax name type is not of class TaxNameType."
             result[CheckResults.Integrity] = False
             break
-        if tax_name_type == TaxNameType.StandardName and not isinstance(tax_name, StandardTaxName):
+        if tax_name_type == NameType.StandardName and not isinstance(tax_name, StandardTaxName):
             result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Tax name type is set to standard, while name is custom."
             result[CheckResults.Integrity] = False
             break
-        if tax_name_type == TaxNameType.CustomName and not isinstance(tax_name, str):
+        if tax_name_type == NameType.CustomName and not isinstance(tax_name, str):
             result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Tax name type is set to custom, but name is not a string"
             result[CheckResults.Integrity] = False
             break
@@ -1532,6 +466,23 @@ def verify_a_tax_integrity(tax:dict, break_for_ultra_safety=False):
             result[CheckResults.IntegrityFailureCode] = f"{tax_name}: HaveCap value is missing or not a bool."
             result[CheckResults.Integrity] = False
             break
+        have_requirements = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.HaveRequirements)
+        if not isinstance(have_requirements, bool):
+            result[CheckResults.IntegrityFailureCode] = f"{tax_name}: TaxHaveRequirements value is missing or not a bool."
+            result[CheckResults.Integrity] = False
+            break
+        if have_requirements:
+            requirements = tax.get(TaxVariables.TaxRequirements)
+            requirements_verification_results = verify_requirements(requirements)
+            if not requirements_verification_results[CheckResults.Integrity]:
+                result[CheckResults.IntegrityFailureCode] = f"{tax_name}:" + str(requirements_verification_results[CheckResults.IntegrityFailureCode])
+                result[CheckResults.Integrity] = False
+                break
+            if not requirements_verification_results[CheckResults.Safety]:
+                result[CheckResults.SafetyFailureCode] = f"{tax_name}:" + str(requirements_verification_results[
+                    CheckResults.SafetyFailureCode])
+                result[CheckResults.Safety] = False
+                break
         taxation_type = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.TaxationType)
         if taxation_type == TaxationType.ProgressiveRate:
             tax_base_type = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.TaxBaseType)
@@ -1634,49 +585,6 @@ def verify_a_tax_integrity(tax:dict, break_for_ultra_safety=False):
                 break
             if break_for_ultra_safety and not tax_cap_verification_result[CheckResults.UltraSafety]:
                 result = tax_cap_verification_result
-                break
-        have_requirements = tax.get(TaxVariables.TaxConfigurations, {}).get(Configurations.TaxHaveRequirements)
-        if not isinstance(have_requirements, bool):
-            result[CheckResults.IntegrityFailureCode] = f"{tax_name}: TaxHaveRequirements value is missing or not a bool."
-            result[CheckResults.Integrity] = False
-            break
-        if have_requirements:
-            req_config = tax.get(TaxVariables.TaxRequirements, {}).get(TaxRequirement.TaxRequirementsConfiguration)
-            if isinstance(req_config, dict):
-                reqs_to_meet = req_config.get(TaxRequirementsConfiguration.RequirementsToMeet)
-                if isinstance(reqs_to_meet, RequirementsToMeet):
-                    if reqs_to_meet == RequirementsToMeet.MustMeetAnyOf:
-                        any_of_list = req_config.get(TaxRequirementsConfiguration.SpecifiedRequirements)
-                        if isinstance(any_of_list, list):
-                            for req in any_of_list:
-                                if req not in tax.get(TaxVariables.TaxRequirements, {}):
-                                    result[CheckResults.IntegrityFailureCode] = f"{tax_name}: listed requirement with the index {req} is missing."
-                                    result[CheckResults.Integrity] = False
-                                    break
-                            if not result[CheckResults.Integrity]:
-                                break
-                        else:
-                            result[CheckResults.IntegrityFailureCode] = f"{tax_name}: Meet any of the following is not a list, instead {type(any_of_list)}."
-                            result[CheckResults.Integrity] = False
-                            break
-                    elif reqs_to_meet == RequirementsToMeet.MustMeetSpecificCount:
-                        specific_req_count_to_meet = req_config.get(TaxRequirementsConfiguration.SpecifiedRequirementsCount)
-                        if isinstance(specific_req_count_to_meet, int):
-                            if specific_req_count_to_meet > len(tax.get(TaxVariables.TaxRequirements, {}))-1:
-                                result[CheckResults.IntegrityFailureCode] = f"{tax_name}: requirement to meet count is greater than len of all listed requirements, {specific_req_count_to_meet} for {len(tax.get(TaxVariables.TaxRequirements, {}))-1}"
-                                result[CheckResults.Integrity] = False
-                                break
-                        else:
-                            result[CheckResults.IntegrityFailureCode] = f"{tax_name}: requirement to meet count is not integer, instead {type(specific_req_count_to_meet)}"
-                            result[CheckResults.Integrity] = False
-                            break
-                else:
-                    result[CheckResults.IntegrityFailureCode] = f"{tax_name}: requirement to meet type is not of RequirementsToMeet class, instead, {type(reqs_to_meet)}."
-                    result[CheckResults.Integrity] = False
-                    break
-            else:
-                result[CheckResults.IntegrityFailureCode] = f"{tax_name}: requirement configuration is not a dictionary, instead{type(req_config)}"
-                result[CheckResults.Integrity] = False
                 break
         break
     return result
@@ -2046,29 +954,1498 @@ def verify_exemption(exemption:dict):
             CheckResults.IntegrityFailureCode] = f"Exemption is not a dictionary, instead {type(exemption)}"
         result[CheckResults.Integrity] = False
     return result
-def vperson_to_person_attribute(vperson, person:Person, converter):
-    if isinstance(vperson, VPerson):
-        if vperson in converter:
-            attribute_name = converter[vperson]["attribute name"]
-            if hasattr(person, attribute_name):
-                return getattr(person, attribute_name)
+def is_a_smart_value(something):
+    if isinstance(something, dict):
+        smart_a = something.get(Values.SmartValueA)
+        smart_b = something.get(Values.SmartValueB)
+        operation = something.get(Values.InterValuesOperation)
+        if verify_smart_values_integrity(smart_a, smart_b, operation):
+            return True
+def is_valid_and_safe_smart_values(something):
+    if isinstance(something, dict):
+        smart_a = something.get(Values.SmartValueA)
+        smart_b = something.get(Values.SmartValueB)
+        operation = something.get(Values.InterValuesOperation)
+        if verify_smart_values_integrity(smart_a, smart_b, operation) and verify_smart_values_safety(smart_a, smart_b, operation):
+            return True
+def verify_requirements(requirements:dict):
+    result = {
+        CheckResults.Integrity: True,
+        CheckResults.IntegrityFailureCode: None,
+        CheckResults.Safety: True,
+        CheckResults.UltraSafety: True,
+        CheckResults.SafetyFailureCode: None,
+    }
+    if isinstance(requirements, dict):
+        for requirement_name, requirement_data in requirements.items():
+            if requirement_name == Requirement.RequirementsConfiguration:
+                requirement_to_meet = requirement_data.get(RequirementsConfiguration.RequirementsToMeet)
+                if requirement_to_meet:
+                    if isinstance(requirement_to_meet, RequirementsToMeet):
+                        if requirement_to_meet == RequirementsToMeet.MustMeetSpecificCount:
+                            specific_count = requirement_data.get(RequirementsConfiguration.SpecifiedRequirementsCount)
+                            if specific_count:
+                                if not len(requirements) - 1 > specific_count > 1:
+                                    if specific_count <= 0:
+                                        result[CheckResults.Integrity] = False
+                                        result[CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: specified count of requirements to meet is less than or equal to zero."
+                                        break
+                                    elif specific_count == 1:
+                                        result[CheckResults.Integrity] = False
+                                        result[
+                                            CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: specified count of requirements to meet is equal 1, use MustMeetAny instead."
+                                        break
+                                    elif specific_count == len(requirements)-1:
+                                        result[CheckResults.Integrity] = False
+                                        result[
+                                            CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: specified count of requirements to meet is equal to the sum of all requirements, use MustMeetAll instead."
+                                        break
+                                    elif specific_count > len(requirements)-1:
+                                        result[CheckResults.Integrity] = False
+                                        result[
+                                            CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: specified count of requirements to meet is greater than the sum of all requirements listed."
+                                        break
+                            else:
+                                result[CheckResults.Integrity] = False
+                                result[CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: requirement to meet is set to specified count, but specified count is missing."
+                                break
+                        elif requirement_to_meet == RequirementsToMeet.MustMeetAnyOf:
+                            specified_requirements_to_meet = requirement_data.get(RequirementsConfiguration.SpecifiedRequirements)
+                            if specified_requirements_to_meet:
+                                if len(specified_requirements_to_meet) > 0:
+                                    if isinstance(specified_requirements_to_meet, list):
+                                        if not has_duplicates(specified_requirements_to_meet):
+                                            for requirement_reference_package in specified_requirements_to_meet:
+                                                if requirement_reference_package:
+                                                    if isinstance(requirement_reference_package, list):
+                                                        if not has_duplicates(requirement_reference_package):
+                                                            for requirement_reference in requirement_reference_package:
+                                                                if requirement_reference not in requirements:
+                                                                    result[CheckResults.Integrity] = False
+                                                                    result[
+                                                                        CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: out of range requirement reference: {requirement_reference}."
+                                                                    break
+                                                        else:
+                                                            result[CheckResults.Integrity] = False
+                                                            result[
+                                                                CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: specified requirement reference package to meet has {count_duplicates(requirement_reference_package)} duplicate items."
+                                                            break
+                                                    else:
+                                                        result[CheckResults.Integrity] = False
+                                                        result[
+                                                            CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: specified requirement packages is not a list, instead {type(requirement_reference_package)}."
+                                                        break
+                                                else:
+                                                    result[CheckResults.Integrity] = False
+                                                    result[
+                                                        CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: specified requirement packages list to meet is empty."
+                                                    break
+                                        else:
+                                            result[CheckResults.Integrity] = False
+                                            result[
+                                                CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: specified requirement packages list to meet has {count_duplicates(specified_requirements_to_meet)} duplicate items."
+                                            break
+                                    else:
+                                        result[CheckResults.Integrity] = False
+                                        result[
+                                            CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: specified requirement packages list to meet is not a list, instead {type(specified_requirements_to_meet)}."
+                                        break
+                                else:
+                                    result[CheckResults.Integrity] = False
+                                    result[
+                                        CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: requirement to meet is set to specified requirements, but specified requirement's reference lists is empty."
+                                    break
+                            else:
+                                result[CheckResults.Integrity] = False
+                                result[
+                                    CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: requirement to meet is set to specified requirements, but specified requirement's reference lists are missing."
+                                break
+                    else:
+                        result[CheckResults.Integrity] = False
+                        result[
+                            CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: requirement to meet is not of RequirementToMeet class."
+                        break
+                else:
+                    result[CheckResults.Integrity] = False
+                    result[CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: requirement to meet is missing."
+                    break
             else:
-                return converter[vperson]["default value"]
-def vperson_dictionary_to_person_attribute(variables:dict, person:Person, converter):
-    for key, its_value in variables.items():
-        if isinstance(its_value, VPerson):
-            variables[key] = vperson_to_person_attribute(its_value, person, converter)
-        elif isinstance(its_value, dict):
-            variables[key] = vperson_dictionary_to_person_attribute(its_value, person, converter)
-    return variables
-def apply_raw_deductibles(dictionary:dict, person:Person, converter):
-    for key, its_value in dictionary.items():
-        if isinstance(its_value, dict):
-            apply_raw_deductibles(its_value, person, converter)
-        elif key == ItemItemization.DeductibleValue:
-            dictionary[key] = vperson_to_person_attribute(its_value, person, converter)
-    return dictionary
-def calculate_pre_base_agi_itemization(items:dict, person:Person, converter=None):
+                value_in_question = requirement_data.get(Requirement.ValueInQuestion)
+                comparison_value = requirement_data.get(Requirement.ComparisonValue)
+                comparison_operator = requirement_data.get(Requirement.ComparisonOperator)
+                if not value_in_question:
+                    result[CheckResults.Integrity] = False
+                    result[
+                        CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: Value in question is missing."
+                    break
+                if not comparison_value:
+                    result[CheckResults.Integrity] = False
+                    result[
+                        CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: Comparison value is missing."
+                    break
+                if comparison_operator:
+                    if isinstance(comparison_operator, ComparisonOperator):
+                        if comparison_operator != ComparisonOperator.Equal:
+                            equality_only_comparison_values_types = [MaritalStatus, State, City]
+                            equality_only_value_in_question = [VPerson.VStatus, VPerson.VState, VPerson.VCity, VPerson.VVariablesIndex, VPerson.VPreference]
+                            if type(comparison_value) in equality_only_comparison_values_types:
+                                result[CheckResults.Integrity] = False
+                                result[
+                                    CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: Comparison value only support equality comparison: {type(comparison_value)}."
+                                break
+                            if value_in_question in equality_only_value_in_question:
+                                result[CheckResults.Integrity] = False
+                                result[
+                                    CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: Value in question only support equality comparison: {value_in_question}."
+                                break
+                    else:
+                        result[CheckResults.Integrity] = False
+                        result[
+                            CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: Comparison operator is not of class ComparisonOperator."
+                        break
+                else:
+                    result[CheckResults.Integrity] = False
+                    result[CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: Comparison operator is missing"
+                    break
+
+                if isinstance(value_in_question, StandardFinancialUnit):
+                    result[CheckResults.Integrity] = False
+                    result[CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: value in question is Standard Financial."
+                    break
+                for value_to_verify in [value_in_question, comparison_value]:
+                    if isinstance(value_to_verify, dict):
+                        if not is_valid_and_safe_smart_values(value_to_verify):
+                            result[CheckResults.Integrity] = False
+                            result[
+                                CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: value in question or comparison value is a dict, but not a valid and safe smart value."
+                            break
+                    else:
+                        if not any(isinstance(value_to_verify, cls) for cls in [VPerson, State, City, MaritalStatus, StandardFinancialUnit]):
+                            result[CheckResults.Integrity] = False
+                            result[
+                                CheckResults.IntegrityFailureCode] = f"Requirement verification failure: requirement number: {requirement_name}: value in question or comparison value is not in VPerson, State, City, MaritalStatus, instead {type(value_to_verify)}"
+                            break
+    return result
+def has_duplicates(lst):
+    seen = []
+    for item in lst:
+        if item in seen:
+            return True
+        seen.append(item)
+    return False
+def count_duplicates(lst:list):
+    duplicates_count = 0
+    ledger = collections.Counter(lst)
+    for item, item_occurrence in ledger.items():
+        if item_occurrence > 1:
+            duplicates_count += 1
+    return duplicates_count
+
+
+
+
+# Person class and Tax Variables
+
+
+standard_variables = {
+    Variables.Configurations: {
+        Configurations.VerifierConfigurations: {
+            VerifierConfigurations.RequiredVerifierVersion: 1,
+            VerifierConfigurations.SupportsForwardCompatibility: True,
+            VerifierConfigurations.SupportsBackwardCompatibility: False,
+        },
+        Configurations.VariablesType: VariablesType.FederalVariables,
+        Configurations.LastUpdated: datetime.datetime(2025,3,18)
+    },
+    Variables.Taxes: {
+        1: {
+            TaxVariables.TaxConfigurations: {
+                Configurations.TaxNameType: NameType.StandardName,
+                Configurations.TaxName: StandardTaxName.FederalIncomeTax,
+                Configurations.TaxationType: TaxationType.ProgressiveRate,
+                Configurations.TaxBaseType: TaxBaseType.VPersonBase,
+                Configurations.TaxBase: VPerson.VFederalFinalAGI,
+                Configurations.TheFlatRate: Decimal("0.05"), # will be ignored since taxation type is set to progressive.
+                Configurations.HighestBracketCeiling: 7,
+                Configurations.TheFixedAmount: Money(Decimal("7987654")), # will be ignored since taxation type is set to progressive.
+                Configurations.HaveCap: False,
+                Configurations.HaveRequirements: False,
+                Configurations.AdjustedIncomeSource: None, # Redundant #ForRemoval
+            },
+            TaxVariables.BracketCeilings: {
+                MaritalStatus.Single: {
+                    1: Money(Decimal("1192500")),
+                    2: Money(Decimal("4847500")),
+                    3: Money(Decimal("10335000")),
+                    4: Money(Decimal("19730000")),
+                    5: Money(Decimal("25052500")),
+                    6: Money(Decimal("62635000")),
+                    7: Money(Decimal("Infinity")),
+                },
+                MaritalStatus.MarriedJoint: {
+                    1: Money(Decimal("2385000")),
+                    2: Money(Decimal("9695000")),
+                    3: Money(Decimal("20670000")),
+                    4: Money(Decimal("39460000")),
+                    5: Money(Decimal("50105000")),
+                    6: Money(Decimal("75160000")),
+                    7: Money(Decimal("Infinity")),
+                },
+                MaritalStatus.MarriedNonJoint: {  # Copy of Single
+                    1: Money(Decimal("1192500")),
+                    2: Money(Decimal("4847500")),
+                    3: Money(Decimal("10335000")),
+                    4: Money(Decimal("19730000")),
+                    5: Money(Decimal("25052500")),
+                    6: Money(Decimal("62635000")),
+                    7: Money(Decimal("Infinity")),
+                },
+            },
+            TaxVariables.Rates: {
+                1: Decimal("0.10"),
+                2: Decimal("0.12"),
+                3: Decimal("0.22"),
+                4: Decimal("0.24"),
+                5: Decimal("0.32"),
+                6: Decimal("0.35"),
+                7: Decimal("0.37"),
+            },
+        },
+        2: {
+            TaxVariables.TaxConfigurations: {
+                Configurations.TaxNameType: NameType.CustomName,
+                Configurations.TaxName: "The Tomato Tax",
+                Configurations.TaxationType: TaxationType.FixedAmount,
+                Configurations.TheFixedAmount: Tax(Decimal("15000")),
+                Configurations.HaveCap: False,
+                Configurations.HaveRequirements: False,
+            },
+        },
+        3: {
+            TaxVariables.TaxConfigurations: {
+                Configurations.TaxNameType : NameType.CustomName,
+                Configurations.TaxName: "Moda Fag",
+                Configurations.TaxationType: TaxationType.FlatRate,
+                Configurations.TaxBaseType: TaxBaseType.VPersonBase,
+                Configurations.TaxBase: VPerson.VFederalFinalAGI,
+                Configurations.TheFlatRate: Decimal("0.01"),
+                Configurations.HaveCap: True,
+                Configurations.HaveRequirements: False,
+            },
+            TaxVariables.TaxCaps: {
+                1: {
+                    TaxCap.TaxLimitType: TaxLimitType.UpperLimitTaxCap,
+                    TaxCap.TaxCapType: TaxCapType.TaxFixedCap,
+                    Values.FixedValue: Money(Decimal("100000"))
+                },
+            },
+        },
+        4: {
+            TaxVariables.TaxConfigurations: {
+                Configurations.TaxNameType: NameType.CustomName,
+                Configurations.TaxName: "First Tax with custom base",
+                Configurations.TaxationType: TaxationType.ProgressiveRate,
+                Configurations.HighestBracketCeiling: 7,
+                Configurations.TaxBaseType: TaxBaseType.CustomBase,
+                Configurations.TaxBase: {
+                    Values.SmartValueA: VPerson.VFederalFinalAGI,
+                    Values.SmartValueB: StandardFinancialUnit(Decimal("100000000")),
+                    Values.InterValuesOperation: InterValuesOperation.FloorSubtraction,
+                },
+                Configurations.TheFlatRate: Decimal("0.05"), # ignored
+                Configurations.HaveCap: False,
+                Configurations.HaveRequirements: False,
+            },
+            TaxVariables.BracketCeilings: {
+                MaritalStatus.Single: {
+                    1: Money(Decimal("1192500")),
+                    2: Money(Decimal("4847500")),
+                    3: Money(Decimal("10335000")),
+                    4: Money(Decimal("19730000")),
+                    5: Money(Decimal("25052500")),
+                    6: Money(Decimal("62635000")),
+                    7: Money(Decimal("Infinity")),
+                },
+                MaritalStatus.MarriedJoint: {
+                    1: Money(Decimal("2385000")),
+                    2: Money(Decimal("9695000")),
+                    3: Money(Decimal("20670000")),
+                    4: Money(Decimal("39460000")),
+                    5: Money(Decimal("50105000")),
+                    6: Money(Decimal("75160000")),
+                    7: Money(Decimal("Infinity")),
+                },
+                MaritalStatus.MarriedNonJoint: {  # Copy of Single
+                    1: Money(Decimal("1192500")),
+                    2: Money(Decimal("4847500")),
+                    3: Money(Decimal("10335000")),
+                    4: Money(Decimal("19730000")),
+                    5: Money(Decimal("25052500")),
+                    6: Money(Decimal("62635000")),
+                    7: Money(Decimal("Infinity")),
+                },
+            },
+            TaxVariables.Rates: {
+                1: Decimal("0.10"),
+                2: Decimal("0.12"),
+                3: Decimal("0.22"),
+                4: Decimal("0.24"),
+                5: Decimal("0.32"),
+                6: Decimal("0.35"),
+                7: Decimal("0.37"),
+            },
+        },
+        5: {
+            TaxVariables.TaxRequirements: {
+                Requirement.RequirementsConfiguration:{
+                    RequirementsConfiguration.RequirementsToMeet: RequirementsToMeet.MustMeetAll,
+                },
+                1: {
+                    Requirement.ValueInQuestion: VPerson.VGrossIncome,
+                    Requirement.ComparisonValue: Money(Decimal("100000000")),
+                    Requirement.ComparisonOperator: ComparisonOperator.GreaterOrEqual,
+                },
+            },
+            TaxVariables.TaxConfigurations: {
+                Configurations.TaxNameType: NameType.CustomName,
+                Configurations.TaxName: "The Pathetic Rich Tax",
+                Configurations.TaxationType: TaxationType.FixedAmount,
+                Configurations.TheFixedAmount: Tax(Decimal("15000")),
+                Configurations.HaveCap: False,
+                Configurations.HaveRequirements: True,
+            },
+        },
+        6: {
+            TaxVariables.TaxRequirements: {
+                Requirement.RequirementsConfiguration:{
+                    RequirementsConfiguration.RequirementsToMeet: RequirementsToMeet.MustMeetSpecificCount,
+                    RequirementsConfiguration.SpecifiedRequirements: [[1, 2]],
+                    RequirementsConfiguration.SpecifiedRequirementsCount: 2,
+                },
+                1: {
+                    Requirement.ValueInQuestion: VPerson.VGrossIncome,
+                    Requirement.ComparisonValue: Money(Decimal("100000000")),
+                    Requirement.ComparisonOperator: ComparisonOperator.GreaterOrEqual,
+                },
+                2: {
+                    Requirement.ValueInQuestion: VPerson.VStatus,
+                    Requirement.ComparisonValue: MaritalStatus.Single,
+                    Requirement.ComparisonOperator: ComparisonOperator.Equal,
+                },
+                3: {
+                    Requirement.ValueInQuestion: VPerson.VStatus,
+                    Requirement.ComparisonValue: MaritalStatus.MarriedJoint,
+                    Requirement.ComparisonOperator: ComparisonOperator.Equal,
+                }
+            },
+            TaxVariables.TaxConfigurations: {
+                Configurations.TaxNameType: NameType.CustomName,
+                Configurations.TaxName: "Some tax with multiple reqs",
+                Configurations.TaxationType: TaxationType.FixedAmount,
+                Configurations.TheFixedAmount: Tax(Decimal("15000")),
+                Configurations.HaveCap: False,
+                Configurations.HaveRequirements: True,
+            },
+        },
+    },
+    Variables.TaxBenefits: {
+        TaxBenefits.Deduction:{
+            Deduction.StandardDeduction: {
+                MaritalStatus.Single: Money(Decimal("1500000")),
+                MaritalStatus.MarriedJoint: Money(Decimal("3000000")),
+                MaritalStatus.MarriedNonJoint: Money(Decimal("1500000")),
+            },
+            Deduction.Itemization:{
+                Itemization.MortgageInterest: {
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
+                    ItemItemization.DeductibleValue: VPerson.VMortgageInterest,
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.ItemizationCaps:{
+                        1: {
+                        ItemItemization.LimitType: LimitType.UpperLimit,
+                        ItemItemization.ItemizationCapType: ItemizationCapType.FixedCap,
+                        Values.FixedValue: Money(Decimal("75000000")),
+                        },
+                    },
+                    ItemItemization.Note: "Mortgages taken before 2018 have a cap of 1M, while after 2018 is capped at 750k.",
+                },
+                Itemization.MedicalAndDentalExpenses: {
+                    ItemItemization.DeductibleValue: VPerson.VMedicalExpenses,
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.ItemizationCaps:{
+                        1:{
+                            ItemItemization.LimitType: LimitType.LowerLimit,
+                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
+                            Values.SmartValueA: VPerson.VFederalBaseAGI,
+                            Values.SmartValueB: Decimal("0.075"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
+                            },
+                        },
+                    },
+                Itemization.PropertyTaxItemization: {
+                    ItemItemization.DeductibleValue: VPerson.VPropertyTaxes,
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
+                    ItemItemization.ReceiverCode: "SALT",
+                    ItemItemization.FeederSpecificCode: 0,
+                    ItemItemization.CapsAppliedCount: 0
+                },
+                Itemization.SALT: {
+                    # ItemItemization.DeductibleValue: VPerson.VSALT,
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Receiver,
+                    ItemItemization.HaveBaseAGIDependentFeeders: False,
+                    ItemItemization.ReceivingCode: "SALT",
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.ItemizationCaps: {
+                        1: {
+                            ItemItemization.LimitType: LimitType.UpperLimit,
+                            ItemItemization.ItemizationCapType: ItemizationCapType.FixedCap,
+                            Values.FixedValue: Money(Decimal("1000000")),
+                        },
+                    },
+                },
+                Itemization.PublicCashDonations: {
+                    ItemItemization.DeductibleValue: VPerson.VPublicCashDonations,
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
+                    ItemItemization.ReceiverCode: "Donations",
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.FeederSpecificCode: 0,
+                    ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
+                    ItemItemization.DeferralSetOfRules: {
+                        DeferralRules.HaveUseItOrLoseItAnnualAllocation: True,
+                        DeferralRules.OneTimeUse: False,
+                        DeferralRules.AnnualAllocation: {
+                            Values.SmartValueA: DynamicContextBasedValue.XDeferral,
+                            Values.SmartValueB: Decimal("0.2"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication
+                        },
+                        DeferralRules.OffsetTargets: {
+                            1: {
+                                DeferralOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
+                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.DynamicOffsetLimit,
+                                DeferralOffsetTarget.OffsetLimit: {
+                                    Values.SmartValueA: VPerson.VCapitalGain,
+                                    Values.SmartValueB: Decimal("0.2"),
+                                    Values.InterValuesOperation: InterValuesOperation.Multiplication
+                                },
+                            },
+                            2: {
+                                DeferralOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
+                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.FixedOffsetLimit,
+                                DeferralOffsetTarget.OffsetLimit: Money(Decimal("300000")),
+                            },
+                        },
+                    } ,
+                    ItemItemization.ItemizationCaps: {
+                        1: {
+                            ItemItemization.LimitType: LimitType.UpperLimit,
+                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
+                            Values.SmartValueA: VPerson.VFederalBaseAGI,
+                            Values.SmartValueB: Decimal("0.6"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
+                        },
+                    },
+                },
+                Itemization.PrivateCashDonations: {
+                    ItemItemization.DeductibleValue: VPerson.VPrivateCashDonations,
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
+                    ItemItemization.ReceiverCode: "Donations",
+                    ItemItemization.FeederSpecificCode: 1,
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
+                    ItemItemization.DeferralSetOfRules: {
+                        DeferralRules.HaveUseItOrLoseItAnnualAllocation: True,
+                        DeferralRules.OneTimeUse: False,
+                        DeferralRules.AnnualAllocation: {
+                            Values.SmartValueA: DynamicContextBasedValue.XDeferral,
+                            Values.SmartValueB: Decimal("0.2"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication
+                        },
+                        DeferralRules.OffsetTargets: {
+                            1: {
+                                DeferralOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
+                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.DynamicOffsetLimit,
+                                DeferralOffsetTarget.OffsetLimit: {
+                                    Values.SmartValueA: VPerson.VCapitalGain,
+                                    Values.SmartValueB: Decimal("0.2"),
+                                    Values.InterValuesOperation: InterValuesOperation.Multiplication
+                                },
+                            },
+                            2: {
+                                DeferralOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
+                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.FixedOffsetLimit,
+                                DeferralOffsetTarget.OffsetLimit: Money(Decimal("300000")),
+                            },
+                        },
+                    },
+                    ItemItemization.ItemizationCaps: {
+                        1: {
+                            ItemItemization.LimitType: LimitType.UpperLimit,
+                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
+                            Values.SmartValueA: VPerson.VFederalBaseAGI,
+                            Values.SmartValueB: Decimal("0.3"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
+                        },
+                    },
+                },
+                Itemization.PublicNonCashDonations: {
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.DeductibleValue: VPerson.VPublicNonCashDonations,
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
+                    ItemItemization.ReceiverCode: "Donations",
+                    ItemItemization.FeederSpecificCode: 2,
+                    ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
+                    ItemItemization.DeferralSetOfRules: {
+                        DeferralRules.HaveUseItOrLoseItAnnualAllocation: True,
+                        DeferralRules.OneTimeUse: False,
+                        DeferralRules.AnnualAllocation: {
+                            Values.SmartValueA: DynamicContextBasedValue.XDeferral,
+                            Values.SmartValueB: Decimal("0.2"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication
+                        },
+                        DeferralRules.OffsetTargets: {
+                            1: {
+                                DeferralOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
+                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.DynamicOffsetLimit,
+                                DeferralOffsetTarget.OffsetLimit: {
+                                    Values.SmartValueA: VPerson.VCapitalGain,
+                                    Values.SmartValueB: Decimal("0.2"),
+                                    Values.InterValuesOperation: InterValuesOperation.Multiplication
+                                },
+                            },
+                            2: {
+                                DeferralOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
+                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.FixedOffsetLimit,
+                                DeferralOffsetTarget.OffsetLimit: Money(Decimal("300000")),
+                            },
+                        },
+                    },
+                    ItemItemization.ItemizationCaps: {
+                        1: {
+                            ItemItemization.LimitType: LimitType.UpperLimit,
+                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
+                            Values.SmartValueA: VPerson.VFederalBaseAGI,
+                            Values.SmartValueB: Decimal("0.3"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
+                        },
+                    },
+                    ItemItemization.Note: "Donation must be public, otherwise, it does not apply."
+                },
+                Itemization.PublicCapitalGainsDonations: {
+                    ItemItemization.DeductibleValue: VPerson.VPublicCapitalGainsDonations,
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
+                    ItemItemization.ReceiverCode: "Donations",
+                    ItemItemization.FeederSpecificCode: 3,
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
+                    ItemItemization.DeferralSetOfRules: {
+                        DeferralRules.HaveUseItOrLoseItAnnualAllocation: True,
+                        DeferralRules.OneTimeUse: False,
+                        DeferralRules.AnnualAllocation: {
+                            Values.SmartValueA: DynamicContextBasedValue.XDeferral,
+                            Values.SmartValueB: Decimal("0.2"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication
+                        },
+                        DeferralRules.OffsetTargets: {
+                            1: {
+                                DeferralOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
+                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.DynamicOffsetLimit,
+                                DeferralOffsetTarget.OffsetLimit: {
+                                    Values.SmartValueA: VPerson.VCapitalGain,
+                                    Values.SmartValueB: Decimal("0.2"),
+                                    Values.InterValuesOperation: InterValuesOperation.Multiplication
+                                },
+                            },
+                            2: {
+                                DeferralOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
+                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.FixedOffsetLimit,
+                                DeferralOffsetTarget.OffsetLimit: Money(Decimal("300000")),
+                            },
+                        },
+                    },
+                    ItemItemization.ItemizationCaps: {
+                        1: {
+                            ItemItemization.LimitType: LimitType.UpperLimit,
+                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
+                            Values.SmartValueA: VPerson.VFederalBaseAGI,
+                            Values.SmartValueB: Decimal("0.3"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
+                        },
+                    },
+                },
+                Itemization.PrivateCapitalGainsDonations: {
+                    ItemItemization.DeductibleValue: VPerson.VPrivateCapitalGainsDonations,
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Feeder,
+                    ItemItemization.ReceiverCode: "Donations",
+                    ItemItemization.FeederSpecificCode: 4,
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
+                    ItemItemization.DeferralSetOfRules: {
+                        DeferralRules.HaveUseItOrLoseItAnnualAllocation: True,
+                        DeferralRules.OneTimeUse: False,
+                        DeferralRules.AnnualAllocation: {
+                            Values.SmartValueA: DynamicContextBasedValue.XDeferral,
+                            Values.SmartValueB: Decimal("0.2"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication
+                        },
+                        DeferralRules.OffsetTargets: {
+                            1: {
+                                DeferralOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
+                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.DynamicOffsetLimit,
+                                DeferralOffsetTarget.OffsetLimit: {
+                                    Values.SmartValueA: VPerson.VCapitalGain,
+                                    Values.SmartValueB: Decimal("0.2"),
+                                    Values.InterValuesOperation: InterValuesOperation.Multiplication
+                                },
+                            },
+                            2: {
+                                DeferralOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
+                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.FixedOffsetLimit,
+                                DeferralOffsetTarget.OffsetLimit: Money(Decimal("300000")),
+                            },
+                        },
+                    },
+                    ItemItemization.ItemizationCaps: {
+                        1: {
+                            ItemItemization.LimitType: LimitType.UpperLimit,
+                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
+                            Values.SmartValueA: VPerson.VFederalBaseAGI,
+                            Values.SmartValueB: Decimal("0.2"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
+                        },
+                    },
+                },
+                Itemization.InvestmentInterestExpense: {
+                    ItemItemization.DeductibleValue: VPerson.VInvestmentInterestExpense,
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.CarryForwardTimeLimit: datetime.datetime.max,
+                    ItemItemization.DeferralSetOfRules: {
+                        DeferralRules.HaveUseItOrLoseItAnnualAllocation: True,
+                        DeferralRules.OneTimeUse: False,
+                        DeferralRules.AnnualAllocation: {
+                            Values.SmartValueA: DynamicContextBasedValue.XDeferral,
+                            Values.SmartValueB: Decimal("0.2"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication
+                        },
+                        DeferralRules.OffsetTargets: {
+                            1: {
+                                DeferralOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
+                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.DynamicOffsetLimit,
+                                DeferralOffsetTarget.OffsetLimit: {
+                                    Values.SmartValueA: VPerson.VCapitalGain,
+                                    Values.SmartValueB: Decimal("0.2"),
+                                    Values.InterValuesOperation: InterValuesOperation.Multiplication
+                                },
+                            },
+                            2: {
+                                DeferralOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
+                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.FixedOffsetLimit,
+                                DeferralOffsetTarget.OffsetLimit: Money(Decimal("300000")),
+                            },
+                        },
+                    },
+                    ItemItemization.ItemizationCaps: {
+                        1: {
+                            ItemItemization.LimitType: LimitType.UpperLimit,
+                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
+                            Values.DynamicValue: VPerson.VTotalDebtBasedInvestmentEarnings,
+                        },
+                    },
+                },
+                Itemization.TotalDonations: {
+                    # ItemItemization.DeductibleValue: VPerson.VInvestmentInterestExpense,
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Receiver,
+                    ItemItemization.ReceivingCode: "Donations",
+                    ItemItemization.HaveBaseAGIDependentFeeders: True,
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
+                    ItemItemization.DeferralSetOfRules: {
+                        DeferralRules.HaveUseItOrLoseItAnnualAllocation: True,
+                        DeferralRules.OneTimeUse: False,
+                        DeferralRules.AnnualAllocation: {
+                            Values.SmartValueA: DynamicContextBasedValue.XDeferral,
+                            Values.SmartValueB: Decimal("0.2"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication
+                        },
+                        DeferralRules.OffsetTargets: {
+                            1: {
+                                DeferralOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
+                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.DynamicOffsetLimit,
+                                DeferralOffsetTarget.OffsetLimit: {
+                                    Values.SmartValueA: VPerson.VCapitalGain,
+                                    Values.SmartValueB: Decimal("0.2"),
+                                    Values.InterValuesOperation: InterValuesOperation.Multiplication
+                                },
+                            },
+                            2: {
+                                DeferralOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
+                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.FixedOffsetLimit,
+                                DeferralOffsetTarget.OffsetLimit: Money(Decimal("300000")),
+                            },
+                        },
+                    },
+                    ItemItemization.ItemizationCaps: {
+                        1: {
+                            ItemItemization.LimitType: LimitType.UpperLimit,
+                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
+                            Values.SmartValueA: VPerson.VFederalBaseAGI,
+                            Values.SmartValueB: Decimal("0.6"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
+                        },
+                    },
+                },
+            },
+        },
+        TaxBenefits.Exemption:{
+            MaritalStatus.Single: Money(),
+            MaritalStatus.MarriedJoint: Money(),
+            MaritalStatus.MarriedNonJoint: Money(),
+        },
+        TaxBenefits.TaxCredit: {
+            1: {
+                TaxCreditData.TaxCreditRequirements: {
+                    Requirement.RequirementsConfiguration:{
+                        RequirementsConfiguration.RequirementsToMeet: RequirementsToMeet.MustMeetAll,
+                        RequirementsConfiguration.RequirementNote: '''* Must have a qualifying child under 17 years old.\n* The child must be a U.S. citizen, U.S. national, or U.S. resident alien\n* The child must live with the taxpayer for more than half the year.\n * The child must be claimed as a dependent on your tax return.'''
+                    },
+                    1: {
+                        Requirement.ValueInQuestion: VPerson.VGrossIncome,
+                        Requirement.ComparisonValue: Money(Decimal("6000000")),
+                        Requirement.ComparisonOperator: ComparisonOperator.LessOrEqual,
+                    },
+                },
+                TaxCreditData.TaxCreditConfigurations: {
+                    Configurations.TaxCreditNameType: NameType.CustomName,
+                    Configurations.TaxCreditName: "Child Tax Credit",
+                    Configurations.HaveRequirements: True,
+                    Configurations.TaxCreditValueType: ValueType.FixedValue,
+                    Configurations.TaxCreditValue: TaxCredit(Decimal("1000000"))
+                },
+            },
+        },
+    },
+}
+standard_user_preference = {
+    Preference.TaxPreference:{
+        TaxPreference.PreferredDeductionType: {
+            Jurisdiction.Federal: PreferredDeductionType.PreferAuto,
+            Jurisdiction.State: PreferredDeductionType.PreferAuto,
+            Jurisdiction.County: PreferredDeductionType.PreferAuto,
+            Jurisdiction.Local: PreferredDeductionType.PreferAuto,
+            Jurisdiction.City: PreferredDeductionType.PreferAuto,
+            Jurisdiction.Municipal: PreferredDeductionType.PreferAuto,
+        },
+    },
+    Preference.SafetyPreference: SafetyPreference.PreferFollowingUltraSafety,
+}
+california_variables = {
+    Variables.Configurations: {
+        Configurations.VerifierConfigurations: {
+            VerifierConfigurations.RequiredVerifierVersion: 1,
+            VerifierConfigurations.SupportsForwardCompatibility: True,
+            VerifierConfigurations.SupportsBackwardCompatibility: False,
+        },
+        Configurations.VariablesType: VariablesType.StateVariables,
+        Configurations.LastUpdated: datetime.datetime(2025, 3, 18)
+    },
+    Variables.Taxes: {
+        1: {
+            TaxVariables.TaxConfigurations: {
+                Configurations.TaxNameType: NameType.StandardName,
+                Configurations.TaxName: StandardTaxName.StateIncomeTax,
+                Configurations.TaxationType: TaxationType.ProgressiveRate,
+                Configurations.HighestBracketCeiling: 9,
+                Configurations.TaxBaseType: TaxBaseType.VPersonBase,
+                Configurations.TaxBase: VPerson.VStateFinalAGI,
+                Configurations.HaveCap: False,
+                Configurations.HaveRequirements: False,
+            },
+            TaxVariables.BracketCeilings: {
+                MaritalStatus.Single: {
+                    1: Money(Decimal("932500")),
+                    2: Money(Decimal("2210700")),
+                    3: Money(Decimal("3489200")),
+                    4: Money(Decimal("4843500")),
+                    5: Money(Decimal("6121400")),
+                    6: Money(Decimal("31268600")),
+                    7: Money(Decimal("37522100")),
+                    8: Money(Decimal("62536900")),
+                    9: Money(Decimal("Infinity")),
+                },
+                MaritalStatus.MarriedJoint: {
+                    1: Money(Decimal("1865000")),
+                    2: Money(Decimal("4421400")),
+                    3: Money(Decimal("6978400")),
+                    4: Money(Decimal("9687000")),
+                    5: Money(Decimal("12242800")),
+                    6: Money(Decimal("62537200")),
+                    7: Money(Decimal("75044200")),
+                    8: Money(Decimal("125073800")),
+                    9: Money(Decimal("Infinity")),
+                },
+                MaritalStatus.MarriedNonJoint: {  # Copy of Single
+                    1: Money(Decimal("932500")),
+                    2: Money(Decimal("2210700")),
+                    3: Money(Decimal("3489200")),
+                    4: Money(Decimal("4843500")),
+                    5: Money(Decimal("6121400")),
+                    6: Money(Decimal("31268600")),
+                    7: Money(Decimal("37522100")),
+                    8: Money(Decimal("62536900")),
+                    9: Money(Decimal("Infinity")),
+                },
+            },
+            TaxVariables.Rates: {
+                1: Decimal("0.01"),
+                2: Decimal("0.02"),
+                3: Decimal("0.04"),
+                4: Decimal("0.06"),
+                5: Decimal("0.08"),
+                6: Decimal("0.093"),
+                7: Decimal("0.103"),
+                8: Decimal("0.113"),
+                9: Decimal("0.123"),
+            },
+        },
+        2: {
+            TaxVariables.TaxRequirements: {
+                Requirement.RequirementsConfiguration:{
+                    RequirementsConfiguration.RequirementsToMeet: RequirementsToMeet.MustMeetAll,
+                },
+                1: {
+                    Requirement.ValueInQuestion: VPerson.VGrossIncome,
+                    Requirement.ComparisonValue: Money(Decimal("10000000")),
+                    Requirement.ComparisonOperator: ComparisonOperator.GreaterOrEqual,
+                },
+                2: {
+                    Requirement.ValueInQuestion: VPerson.VOwnedVehiclesPrice,
+                    Requirement.ComparisonValue: Money(Decimal("6000000")),
+                    Requirement.ComparisonOperator: ComparisonOperator.GreaterThan,
+                }
+            },
+            TaxVariables.TaxConfigurations: {
+                Configurations.TaxNameType: NameType.CustomName,
+                Configurations.TaxName: "Luxury Vehicle Tax",
+                Configurations.TaxationType: TaxationType.ProgressiveRate,
+                Configurations.HighestBracketCeiling: 4,
+                Configurations.TaxBaseType: TaxBaseType.VPersonBase,
+                Configurations.TaxBase: VPerson.VOwnedVehiclesPrice,
+                Configurations.HaveCap: False,
+                Configurations.HaveRequirements: True,
+            },
+            TaxVariables.BracketCeilings: {
+                MaritalStatus.Single: {
+                    1: Money(Decimal("6000000")),
+                    2: Money(Decimal("7500000")),
+                    3: Money(Decimal("10000000")),
+                    4: Money(Decimal("Infinity")),
+                },
+                MaritalStatus.MarriedJoint: { # Copy of Single since marital status doesn't matter
+                    1: Money(Decimal("6000000")),
+                    2: Money(Decimal("7500000")),
+                    3: Money(Decimal("10000000")),
+                    4: Money(Decimal("Infinity")),
+                },
+                MaritalStatus.MarriedNonJoint: {  # Copy of Single since marital status doesn't matter
+                    1: Money(Decimal("6000000")),
+                    2: Money(Decimal("7500000")),
+                    3: Money(Decimal("10000000")),
+                    4: Money(Decimal("Infinity")),
+                },
+            },
+            TaxVariables.Rates: {
+                1: Decimal("0"),
+                2: Decimal("0.02"),
+                3: Decimal("0.04"),
+                4: Decimal("0.06"),
+            },
+        },
+    },
+    Variables.TaxBenefits: {
+        TaxBenefits.Deduction: {
+            Deduction.StandardDeduction: {
+                MaritalStatus.Single: Money(Decimal("554000")),
+                MaritalStatus.MarriedJoint: Money(Decimal("1108000")),
+                MaritalStatus.MarriedNonJoint: Money(Decimal("554000")),
+            },
+            Deduction.Itemization: {
+                Itemization.MortgageInterest: {
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
+                    ItemItemization.DeductibleValue: VPerson.VMortgageInterest,
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.ItemizationCaps: {
+                        1: {
+                            ItemItemization.LimitType: LimitType.UpperLimit,
+                            ItemItemization.ItemizationCapType: ItemizationCapType.FixedCap,
+                            Values.FixedValue: Money(Decimal("100000000")),
+                        },
+                    },
+                    ItemItemization.Note: "California allows mortgage interest deduction up to $1M, unlike federal's $750k cap.",
+                },
+                Itemization.MedicalAndDentalExpenses: {
+                    ItemItemization.DeductibleValue: VPerson.VMedicalExpenses,
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.ItemizationCaps: {
+                        1: {
+                            ItemItemization.LimitType: LimitType.LowerLimit,
+                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
+                            Values.SmartValueA: VPerson.VStateBaseAGI,
+                            Values.SmartValueB: Decimal("0.075"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
+                        },
+                    },
+                },
+            },
+        },
+        TaxBenefits.Exemption: {
+            MaritalStatus.Single: Money(Decimal("12900")),
+            MaritalStatus.MarriedJoint: Money(Decimal("25800")),
+            MaritalStatus.MarriedNonJoint: Money(Decimal("12900")),
+        },
+    },
+}
+new_york_variables = {
+    Variables.Configurations: {
+        Configurations.VerifierConfigurations: {
+            VerifierConfigurations.RequiredVerifierVersion: 1,
+            VerifierConfigurations.SupportsForwardCompatibility: True,
+            VerifierConfigurations.SupportsBackwardCompatibility: False,
+        },
+        Configurations.VariablesType: VariablesType.StateVariables,
+        Configurations.LastUpdated: datetime.datetime(2025, 3, 31)
+    },
+    Variables.Taxes: {
+        1: {
+            TaxVariables.TaxConfigurations: {
+                Configurations.TaxNameType: NameType.StandardName,
+                Configurations.TaxName: StandardTaxName.StateIncomeTax,
+                Configurations.TaxationType: TaxationType.ProgressiveRate,
+                Configurations.TaxBaseType: TaxBaseType.VPersonBase,
+                Configurations.TaxBase: VPerson.VStateFinalAGI,
+                Configurations.AdjustedIncomeSource: AdjustedIncomeSource.FromState,
+                Configurations.HighestBracketCeiling: 9,
+                Configurations.HaveCap: False,
+                Configurations.HaveRequirements: False,
+            },
+            TaxVariables.BracketCeilings: {
+                MaritalStatus.Single: {
+                    1: Money(Decimal("850000")),
+                    2: Money(Decimal("1170000")),
+                    3: Money(Decimal("1390000")),
+                    4: Money(Decimal("2140000")),
+                    5: Money(Decimal("8065000")),
+                    6: Money(Decimal("21540000")),
+                    7: Money(Decimal("107755000")),
+                    8: Money(Decimal("500000000")),
+                    9: Money(Decimal("Infinity")),
+                },
+                MaritalStatus.MarriedJoint: {
+                    1: Money(Decimal("1715000")),
+                    2: Money(Decimal("2360000")),
+                    3: Money(Decimal("2790000")),
+                    4: Money(Decimal("4280000")),
+                    5: Money(Decimal("16155000")),
+                    6: Money(Decimal("32320000")),
+                    7: Money(Decimal("215400000")),
+                    8: Money(Decimal("500000000")),
+                    9: Money(Decimal("Infinity")),
+                },
+                MaritalStatus.MarriedNonJoint: {  # Copy of Single
+                    1: Money(Decimal("850000")),
+                    2: Money(Decimal("1170000")),
+                    3: Money(Decimal("1390000")),
+                    4: Money(Decimal("2140000")),
+                    5: Money(Decimal("8065000")),
+                    6: Money(Decimal("21540000")),
+                    7: Money(Decimal("107755000")),
+                    8: Money(Decimal("500000000")),
+                    9: Money(Decimal("Infinity")),
+                },
+            },
+            TaxVariables.Rates: {
+                1: Decimal("0.04"),
+                2: Decimal("0.045"),
+                3: Decimal("0.0525"),
+                4: Decimal("0.059"),
+                5: Decimal("0.0597"),
+                6: Decimal("0.0633"),
+                7: Decimal("0.0685"),
+                8: Decimal("0.103"),
+                9: Decimal("0.109"),
+            },
+        },
+    },
+    Variables.TaxBenefits: {
+        TaxBenefits.Deduction: {
+            Deduction.StandardDeduction: {
+                MaritalStatus.Single: Money(Decimal("800000")),
+                MaritalStatus.MarriedJoint: Money(Decimal("1605000")),
+                MaritalStatus.MarriedNonJoint: Money(Decimal("800000")),
+            },
+            Deduction.Itemization: {
+                Itemization.MortgageInterest: {
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
+                    ItemItemization.DeductibleValue: VPerson.VMortgageInterest,
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.ItemizationCaps: {
+                        1: {
+                            ItemItemization.LimitType: LimitType.UpperLimit,
+                            ItemItemization.ItemizationCapType: ItemizationCapType.FixedCap,
+                            Values.FixedValue: Money(Decimal("10000000")),
+                        },
+                    },
+                },
+                Itemization.MedicalAndDentalExpenses: {
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
+                    ItemItemization.DeductibleValue: VPerson.VMedicalExpenses,
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.ItemizationCaps: {
+                        1: {
+                            ItemItemization.LimitType: LimitType.LowerLimit,
+                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
+                            Values.SmartValueA: VPerson.VFederalBaseAGI,
+                            Values.SmartValueB: Decimal("0.075"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
+                        },
+                    },
+                },
+                Itemization.CharitableContributions: {
+                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
+                    ItemItemization.DeductibleValue: VPerson.VCharitableContributions,
+                    ItemItemization.CapsAppliedCount: 1,
+                    ItemItemization.ItemizationCaps: {
+                        1: {
+                            ItemItemization.LimitType: LimitType.UpperLimit,
+                            ItemItemization.ItemizationCapType: ItemizationCapType.DynamicCap,
+                            Values.SmartValueA: VPerson.VFederalBaseAGI,
+                            Values.SmartValueB: Decimal("0.60"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication,
+                        },
+                    },
+                },
+            },
+        },
+        TaxBenefits.Exemption: {
+            MaritalStatus.Single: Money(Decimal("0")),  # NY does not have a personal exemption
+            MaritalStatus.MarriedJoint: Money(Decimal("0")),
+            MaritalStatus.MarriedNonJoint: Money(Decimal("0")),
+        },
+    },
+}
+default_variables_index = {
+    LocalIndex.FederalVariablesIndex: standard_variables,
+    LocalIndex.StatesVariablesIndex: {
+        State.California: california_variables,
+        State.NewYork: new_york_variables
+    },
+    LocalIndex.CitiesVariablesIndex: {
+        City.NewYorkCity
+    },
+    LocalIndex.MunicipalitiesVariablesIndex: {},
+}
+class Person:
+    def __init__(self, first_name:str="", last_name:str="", marital_status:MaritalStatus=MaritalStatus.UnSpecified,
+                 age:int=0, income:Money=Money(Decimal("0")), state:State=State.UnSpecifiedState,
+                 city:City=City.UnSpecifiedCity,
+                 attributes=None, variables_index=None, preference_settings=None):
+        if attributes is None:
+            attributes = {}
+        if variables_index is None:
+            variables_index = default_variables_index
+        if preference_settings is None:
+            preference_settings = standard_user_preference
+        self.first = first_name
+        self.last = last_name
+        self.status = marital_status
+        self.age = age
+        self.income = income
+        self.state = state
+        self.city = city
+        self.variables_index = variables_index
+        self.preference = preference_settings
+        self.slot0 = None
+        self.slot1 = None
+        self.slot2 = None
+        viable_optional_attributes = {
+            "total_itemized": Money,  # Always present
+            "charitable_contributions": Money,
+            "public_cash_donations": Money,
+            "public_non_cash_donations": Money,
+            "private_cash_donations": Money,
+            "public_capital_gains_donations": Money,
+            "private_capital_gains_donations": Money,
+            "gambling_losses": Money,
+            "alimony_paid": Money,
+            "retirement_contributions": Money,
+            "health_insurance_premiums": Money,
+            "total_debt_based_investment_earnings": Money,
+            "medical_expenses": Liability,
+            "childcare_expenses": Liability,
+            "job_expenses": Liability,
+            "education_expenses": Liability,
+            "student_loan_interest": Liability,
+            "mortgage_interest": Liability,
+            "total_investment_expense": Liability,
+            "investment_interest_expense": Liability,
+            "business_expenses": Liability,
+            "rental_expenses": Liability,
+            "moving_expenses": Liability,  # Limited eligibility under current laws
+            "property_taxes": Tax,
+            "SALT": Tax,
+        }
+        for key, its_value in attributes.items():
+            if key in viable_optional_attributes and type(its_value) == viable_optional_attributes[key]:
+                setattr(self, key, its_value)
+    @property
+    def federal_variables(self):
+        return self.variables_index[LocalIndex.FederalVariablesIndex]
+    @property
+    def state_variables(self):
+        # noinspection PyTypeChecker
+        return self.variables_index[LocalIndex.StatesVariablesIndex][self.state]
+    @property
+    def city_variables(self):
+        # noinspection PyTypeChecker
+        return self.variables_index[LocalIndex.CitiesVariablesIndex][self.city]
+    @property
+    def municipal_variables(self):
+        return self.variables_index[LocalIndex.MunicipalitiesVariablesIndex]
+    @property
+    def federal_standardized_deductions(self):
+        return calculate_tax_benefits_when_standardized(self, self.federal_variables)
+    @property
+    def federal_itemized_deductions(self):
+        return calculate_tax_benefits_when_itemizing(self, self.federal_variables)
+    @property
+    def federal_deductions(self):
+        preference = self.preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType][Jurisdiction.Federal]
+        if preference == PreferredDeductionType.PreferAuto:
+            return max(self.federal_standardized_deductions, self.federal_itemized_deductions)
+        elif preference == PreferredDeductionType.PreferStandardized:
+            return self.federal_standardized_deductions
+        elif preference == PreferredDeductionType.PreferItemized:
+            return self.federal_itemized_deductions
+    @property
+    def federal_base_agi(self):
+        # noinspection PyTypeChecker
+        items = self.federal_variables[Variables.TaxBenefits][TaxBenefits.Deduction][Deduction.Itemization]
+        pre_base_agi_itemization = calculate_pre_base_agi_itemization(items, self, vperson_to_person_attributes)
+        if self.income >= pre_base_agi_itemization:
+            return self.income - pre_base_agi_itemization
+        else:
+            return Money()
+    @property
+    def federal_final_agi(self):
+        if self.income >= self.federal_deductions:
+            return self.income - self.federal_deductions
+        else:
+            return Money()
+
+    @property
+    def state_standardized_deductions(self):
+        return calculate_tax_benefits_when_standardized(self, self.state_variables)
+
+    @property
+    def state_itemized_deductions(self):
+        return calculate_tax_benefits_when_itemizing(self, self.state_variables)
+
+    @property
+    def state_deductions(self):
+        preference = self.preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType][
+            Jurisdiction.State]
+        if preference == PreferredDeductionType.PreferAuto:
+            return max(self.state_standardized_deductions, self.state_itemized_deductions)
+        elif preference == PreferredDeductionType.PreferStandardized:
+            return self.state_standardized_deductions
+        elif preference == PreferredDeductionType.PreferItemized:
+            return self.state_itemized_deductions
+
+    @property
+    def state_base_agi(self):
+        # noinspection PyTypeChecker
+        items = self.state_variables[Variables.TaxBenefits][TaxBenefits.Deduction][Deduction.Itemization]
+        pre_base_agi_itemization = calculate_pre_base_agi_itemization(items, self, vperson_to_person_attributes)
+        if self.income >= pre_base_agi_itemization:
+            return self.income - pre_base_agi_itemization
+        else:
+            return Money()
+
+    @property
+    def state_final_agi(self):
+        if self.income >= self.state_deductions:
+            return self.income - self.state_deductions
+        else:
+            return Money()
+
+    @property
+    def city_standardized_deductions(self):
+        return calculate_tax_benefits_when_standardized(self, self.city_variables)
+
+    @property
+    def city_itemized_deductions(self):
+        return calculate_tax_benefits_when_itemizing(self, self.city_variables)
+
+    @property
+    def city_deductions(self):
+        preference = self.preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType][
+            Jurisdiction.State]
+        if preference == PreferredDeductionType.PreferAuto:
+            return max(self.city_standardized_deductions, self.city_itemized_deductions)
+        elif preference == PreferredDeductionType.PreferStandardized:
+            return self.city_standardized_deductions
+        elif preference == PreferredDeductionType.PreferItemized:
+            return self.city_itemized_deductions
+
+    @property
+    def city_base_agi(self):
+        # noinspection PyTypeChecker
+        items = self.city_variables[Variables.TaxBenefits][TaxBenefits.Deduction][Deduction.Itemization]
+        pre_base_agi_itemization = calculate_pre_base_agi_itemization(items, self, vperson_to_person_attributes)
+        if self.income >= pre_base_agi_itemization:
+            return self.income - pre_base_agi_itemization
+        else:
+            return Money()
+
+    @property
+    def city_final_agi(self):
+        if self.income >= self.city_deductions:
+            return self.income - self.city_deductions
+        else:
+            return Money()
+
+    @property
+    def municipal_standardized_deductions(self):
+        return calculate_tax_benefits_when_standardized(self, self.municipal_variables)
+
+    @property
+    def municipal_itemized_deductions(self):
+        return calculate_tax_benefits_when_itemizing(self, self.municipal_variables)
+
+    @property
+    def municipal_deductions(self):
+        preference = self.preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType][
+            Jurisdiction.State]
+        if preference == PreferredDeductionType.PreferAuto:
+            return max(self.municipal_standardized_deductions, self.municipal_itemized_deductions)
+        elif preference == PreferredDeductionType.PreferStandardized:
+            return self.municipal_standardized_deductions
+        elif preference == PreferredDeductionType.PreferItemized:
+            return self.municipal_itemized_deductions
+
+    @property
+    def municipal_base_agi(self):
+        # noinspection PyTypeChecker
+        items = self.municipal_variables[Variables.TaxBenefits][TaxBenefits.Deduction][Deduction.Itemization]
+        pre_base_agi_itemization = calculate_pre_base_agi_itemization(items, self, vperson_to_person_attributes)
+        if self.income >= pre_base_agi_itemization:
+            return self.income - pre_base_agi_itemization
+        else:
+            return Money()
+
+    @property
+    def municipal_final_agi(self):
+        if self.income >= self.municipal_deductions:
+            return self.income - self.municipal_deductions
+        else:
+            return Money()
+
+all_calculations = ["calculate_pre_base_agi_itemization", "calculate_post_base_agi_itemization",
+           "calculate_item_directly", "calculate_caps", "calculate_cap", "calculate_smart_values",
+           "calculate_smart_values_from_dictionary", "calculate_tax_benefits", "calculate_exemptions",
+           "calculate_tax_benefits_when_standardized", "calculate_tax_benefits_when_itemizing",
+           "calculate_tax", "find_bracket", "apply_rate", "adjust_tax_value_for_its_caps",
+           "calculate_tax_cap", "calculate_tax_caps", "vperson_to_person_attribute",
+           "vperson_to_person_attributes", "calculate_future_deferrals", "calculate_tax_credits", "calculate_current_deferrals"]
+
+
+# Calculations
+
+
+vperson_to_person_attributes = {
+    VPerson.VState: {
+        "attribute name": "state",
+        "default value": State.UnSpecifiedState,
+    },
+    VPerson.VCity: {
+        "attribute name": "city",
+        "default value": City.UnSpecifiedCity,
+    },
+    VPerson.VPreference: {
+        "attribute name": "preference",
+        "default value": None,
+    },
+    VPerson.VVariablesIndex: {
+        "attribute name": "variables_index",
+        "default value": None,
+    },
+    VPerson.VCityBaseAGI: {
+        "attribute name": "city_base_agi",
+        "default value": Money(),
+    },
+    VPerson.VCityFinalAGI: {
+        "attribute name": "city_final_agi",
+        "default value": Money(),
+    },
+    VPerson.VStatus: {
+        "attribute name": "status",
+        "default value": MaritalStatus.UnSpecified,
+    },
+    VPerson.VFederalFinalAGI: {
+        "attribute name": "federal_final_agi",
+        "default value": Money()
+    },
+    VPerson.VFederalBaseAGI:{
+        "attribute name": "federal_base_agi",
+        "default value": Money()
+    },
+    VPerson.VStateFinalAGI: {
+        "attribute name": "federal_final_agi",
+        "default value": Money()
+    },
+    VPerson.VStateBaseAGI:{
+        "attribute name": "federal_base_agi",
+        "default value": Money()
+    },
+    VPerson.VTotalItemized: {
+        "attribute name": "total_itemized",
+        "default value": Money()
+    },
+    VPerson.VTotalInvestmentExpense: {
+        "attribute name": "total_investment_expense",
+        "default value": Liability()
+    },
+    VPerson.VMedicalExpenses: {
+        "attribute name": "medical_expenses",
+        "default value": Liability()
+    },
+    VPerson.VCharitableContributions: {
+        "attribute name": "charitable_contributions",
+        "default value": Money()
+    },
+    VPerson.VMortgageInterest: {
+        "attribute name": "mortgage_interest",
+        "default value": Liability()
+    },
+    VPerson.VPropertyTaxes: {
+        "attribute name": "property_taxes",
+        "default value": Tax()
+    },
+    VPerson.VStudentLoanInterest: {
+        "attribute name": "student_loan_interest",
+        "default value": Liability()
+    },
+    VPerson.VJobExpenses: {
+        "attribute name": "job_expenses",
+        "default value": Liability()
+    },
+    VPerson.VEducationExpenses: {
+        "attribute name": "education_expenses",
+        "default value": Liability()
+    },
+    VPerson.VRetirementContributions: {
+        "attribute name": "retirement_contributions",
+        "default value": Money()
+    },
+    VPerson.VChildcareExpenses: {
+        "attribute name": "childcare_expenses",
+        "default value": Liability()
+    },
+    VPerson.VHealthInsurancePremiums: {
+        "attribute name": "health_insurance_premiums",
+        "default value": Money()
+    },
+    VPerson.VBusinessExpenses: {
+        "attribute name": "business_expenses",
+        "default value": Liability()
+    },
+    VPerson.VRentalExpenses: {
+        "attribute name": "rental_expenses",
+        "default value": Liability()
+    },
+    VPerson.VAlimonyPaid: {
+        "attribute name": "alimony_paid",
+        "default value": Money()
+    },
+    VPerson.VGamblingLosses: {
+        "attribute name": "gambling_losses",
+        "default value": Money()
+    },
+    VPerson.VMovingExpenses: {
+        "attribute name": "moving_expenses",
+        "default value": Liability()
+    },
+    VPerson.VPublicCashDonations: {
+        "attribute name": "public_cash_donations",
+        "default value": Money()
+    },
+    VPerson.VPrivateCashDonations: {
+        "attribute name": "private_cash_donations",
+        "default value": Money()
+    },
+    VPerson.VPublicNonCashDonations: {
+        "attribute name": "public_non_cash_donations",
+        "default value": Money()
+    },
+    VPerson.VPublicCapitalGainsDonations: {
+        "attribute name": "public_capital_gains_donations",
+        "default value": Money()
+    },
+    VPerson.VPrivateCapitalGainsDonations: {
+        "attribute name": "private_capital_gains_donations",
+        "default value": Money()
+    },
+    VPerson.VInvestmentInterestExpense: {
+        "attribute name": "investment_interest_expense",
+        "default value": Liability()
+    },
+    VPerson.VSALT: {
+        "attribute name": "SALT",
+        "default value": Tax()
+    },
+    VPerson.VTotalInvestmentInterestExpense: {
+        "attribute name": "total_investment_interest_expense",
+        "default value": Liability()
+    },
+    VPerson.VTotalDebtBasedInvestmentEarnings: {
+        "attribute name": "total_debt_based_investment_earnings",
+        "default value": Money()
+    },
+    VPerson.VGrossIncome: {
+        "attribute name": "income",
+        "default value": Money()
+    },
+    VPerson.VAdjustedIncome: {
+        "attribute name": "adjusted_income",
+        "default value": Money()
+    },
+    VPerson.VPropertyValue: {
+        "attribute name": "property_value",
+        "default value": Money()
+    },
+    VPerson.VWealth: {
+        "attribute name": "wealth",
+        "default value": Money()
+    },
+    VPerson.VCapitalGain: {
+        "attribute name": "capital_gain",
+        "default value": Money()
+    },
+    VPerson.VCustomBase: {
+        "attribute name": "custom_base",
+        "default value": Money()
+    },
+    VPerson.VOwnedVehiclesCount: {
+        "attribute name": "owned_vehicles_count",
+        "default value": 0
+    },
+    VPerson.VOwnedVehiclesPrice: {
+        "attribute name": "owned_vehicles_price",
+        "default value": Money()
+    },
+}
+def calculate_pre_base_agi_itemization(items:dict, person, converter=None):
     if converter is None:
         converter = vperson_to_person_attributes
     base_agi_dependent_indicators = [VPerson.VFederalBaseAGI, VPerson.VCurrentBaseAGI, VPerson.VStateBaseAGI, VPerson.VCustomBase]
@@ -2094,28 +2471,63 @@ def calculate_pre_base_agi_itemization(items:dict, person:Person, converter=None
                 total_received = sum(ledger[receiving_code].values(), StandardFinancialUnit())
                 accumulated_from_receivers += calculate_item_directly(item, person, converter, True, total_received)
     return accumulated_directs+accumulated_from_receivers
-def calculate_post_base_agi_itemization(items:dict, person:Person, converter):
+def calculate_post_base_agi_itemization(items:dict, person, converter):
+    deferrals_ledger = {}
     accumulated_directs = Money()
     accumulated_from_receivers = Money()
     ledger = {}
-    for item in items.values():
-        if item[ItemItemization.ItemItemizationType] == ItemItemizationType.Direct:
-            accumulated_directs += calculate_item_directly(item, person, converter)
-        elif item[ItemItemization.ItemItemizationType] == ItemItemizationType.Feeder:
-            receiver_code = item[ItemItemization.ReceiverCode]
-            feeder_specific_code = item[ItemItemization.FeederSpecificCode]
-            if ledger.get(receiver_code):
-                ledger[receiver_code][feeder_specific_code] = calculate_item_directly(item, person, converter)
-            else:
-                ledger[receiver_code] = {}
-                ledger[receiver_code][feeder_specific_code] = calculate_item_directly(item, person, converter)
-    for item in items.values():
+    for item_name, item in items.items():
+        item_type = item[ItemItemization.ItemItemizationType]
+        if item_type in [ItemItemizationType.Direct, ItemItemizationType.Feeder]:
+            adjusted_itemization_value = calculate_item_directly(item, person, converter)
+            carry_forward = item.get(ItemItemization.CarryForwardTimeLimit)
+            if isinstance(carry_forward, relativedelta) or isinstance(carry_forward, datetime):
+                if isinstance(carry_forward, relativedelta):
+                    expiration = datetime.now() + carry_forward
+                else:
+                    expiration = carry_forward
+                deferral_set_of_rules = item[ItemItemization.DeferralSetOfRules]
+                initial_itemization_value = vperson_to_person_attribute(item[ItemItemization.DeductibleValue], person, converter)
+                deferral_value = initial_itemization_value.amount - adjusted_itemization_value.amount
+                item_deferral = Deferral(deferral_value, datetime.today(), expiration, deferral_set_of_rules)
+                deferrals_ledger[item_name] = item_deferral
+            if item_type == ItemItemizationType.Direct:
+                accumulated_directs += adjusted_itemization_value
+            elif item_type == ItemItemizationType.Feeder:
+                receiver_code = item[ItemItemization.ReceiverCode]
+                feeder_specific_code = item[ItemItemization.FeederSpecificCode]
+                if ledger.get(receiver_code):
+                    ledger[receiver_code][feeder_specific_code] = adjusted_itemization_value
+                else:
+                    ledger[receiver_code] = {}
+                    ledger[receiver_code][feeder_specific_code] = adjusted_itemization_value
+    for item_name, item in items.items():
         if item[ItemItemization.ItemItemizationType] == ItemItemizationType.Receiver:
             receiving_code = item[ItemItemization.ReceivingCode]
             total_received = sum(ledger[receiving_code].values(), StandardFinancialUnit())
-            accumulated_from_receivers += calculate_item_directly(item, person, converter, True, total_received)
-    return accumulated_directs + accumulated_from_receivers
-def calculate_item_directly(item:dict, person:Person, converter, receiver=False, total_received=None):
+            adjusted_itemization_value = calculate_item_directly(item, person, converter, True, total_received)
+            accumulated_from_receivers += adjusted_itemization_value
+            carry_forward = item.get(ItemItemization.CarryForwardTimeLimit)
+            if isinstance(carry_forward, relativedelta) or isinstance(carry_forward, datetime):
+                if isinstance(carry_forward, relativedelta):
+                    expiration = datetime.now() + carry_forward
+                else:
+                    expiration = carry_forward
+                deferral_set_of_rules = item[ItemItemization.DeferralSetOfRules]
+                deferral_value = total_received.amount - adjusted_itemization_value.amount
+                item_deferral = Deferral(deferral_value, datetime.today(), expiration, deferral_set_of_rules)
+                deferrals_ledger[item_name] = item_deferral
+    keys_to_remove = []
+    for deferral_name, deferral in deferrals_ledger.items():
+        if deferral.amount == Decimal("0"):
+            keys_to_remove.append(deferral_name)
+    for key in keys_to_remove:
+        deferrals_ledger.pop(key)
+    return accumulated_directs + accumulated_from_receivers, deferrals_ledger
+def calculate_future_deferrals(items:dict, person, converter):
+    _ , deferrals_ledger = calculate_post_base_agi_itemization(items, person, converter)
+    return deferrals_ledger
+def calculate_item_directly(item:dict, person, converter, receiver=False, total_received=None):
     if ItemItemization.ItemizationCaps in item:
         caps = calculate_caps(item[ItemItemization.ItemizationCaps], person, converter)
         upper_limits = caps[0]
@@ -2159,7 +2571,7 @@ def calculate_cap(cap:dict, person, converter):
         cap_value = cap[Values.FixedValue]
     capping_method = cap[ItemItemization.LimitType]
     return cap_value, capping_method
-def calculate_smart_values(a, b, operation, person:Person, converter):
+def calculate_smart_values(a, b, operation, person, converter):
     if isinstance(a, dict):
         a = calculate_smart_values(a[Values.SmartValueA], a[Values.SmartValueB], a[Values.InterValuesOperation], person, converter)
     elif isinstance(a, VPerson):
@@ -2188,14 +2600,14 @@ def calculate_smart_values(a, b, operation, person:Person, converter):
     else:
         raise TypeError
     return results
-def calculate_smart_values_from_dictionary(dictionary:dict, person:Person, converter:dict):
+def calculate_smart_values_from_dictionary(dictionary:dict, person, converter:dict):
     smart_a = dictionary[Values.SmartValueA]
     smart_b = dictionary[Values.SmartValueB]
     operation = dictionary[Values.InterValuesOperation]
     return calculate_smart_values(smart_a, smart_b, operation, person, converter)
-def calculate_tax_benefits(person:Person, variables, converter):
+def calculate_tax_benefits(person, variables, converter):
     standard_deduction = calculate_tax_benefits_when_standardized(person, variables)
-    itemized = calculate_post_base_agi_itemization(variables,person ,converter)
+    itemized, _ = calculate_post_base_agi_itemization(variables,person ,converter)
     preference = person.preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType]
     if preference == PreferredDeductionType.PreferStandardized:
         return standard_deduction, Deduction.StandardDeduction
@@ -2208,6 +2620,27 @@ def calculate_tax_benefits(person:Person, variables, converter):
             return itemized, Deduction.ItemizedDeduction
 def calculate_exemptions(person, variables):
     return variables[Variables.TaxBenefits][TaxBenefits.Exemption][person.status]
+def calculate_current_deferrals(person):
+    print(person)
+def calculate_tax_credits(person, variables, converter):
+    accumulated_tax_credits = TaxCredit()
+    tax_credits_data:dict = variables[Variables.TaxBenefits][TaxBenefits.TaxCredit]
+    for tax_credit_data in tax_credits_data.values():
+        tax_credit_value_type = tax_credit_data[TaxCreditData.TaxCreditConfigurations][Configurations.TaxCreditValueType]
+        tax_credit_value = tax_credit_data[TaxCreditData.TaxCreditConfigurations][Configurations.TaxCreditValue]
+        if tax_credit_value_type == ValueType.DynamicValue:
+            if isinstance(tax_credit_value, VPerson):
+                tax_credit_value = vperson_to_person_attribute(tax_credit_value, person, converter)
+        elif tax_credit_value_type == ValueType.SmartValue:
+            tax_credit_value = calculate_smart_values_from_dictionary(tax_credit_value, person, converter)
+        have_requirements = tax_credit_data[TaxCreditData.TaxCreditConfigurations][Configurations.HaveRequirements]
+        if have_requirements:
+            requirements = tax_credit_data[TaxCreditData.TaxCreditRequirements]
+            if meets_requirements_according_to_its_rules(requirements, person, converter):
+                accumulated_tax_credits += tax_credit_value
+        else:
+            accumulated_tax_credits += tax_credit_value
+    return accumulated_tax_credits
 def calculate_tax_benefits_when_standardized(person, variables):
     standard_deduction = variables[Variables.TaxBenefits][TaxBenefits.Deduction][Deduction.StandardDeduction][person.status]
     exemption = calculate_exemptions(person, variables)
@@ -2217,9 +2650,9 @@ def calculate_tax_benefits_when_itemizing(person, variables, converter=None):
         converter = vperson_to_person_attributes
     items = variables[Variables.TaxBenefits][TaxBenefits.Deduction][Deduction.Itemization]
     exemptions = calculate_exemptions(person, variables)
-    itemizations = calculate_post_base_agi_itemization(items, person, converter)
+    itemizations, _ = calculate_post_base_agi_itemization(items, person, converter)
     return exemptions + itemizations
-def calculate_tax(tax:dict, person:Person, converter:dict):
+def calculate_tax(tax:dict, person, converter:dict):
     tax_value = Tax()
     taxation_type = tax[TaxVariables.TaxConfigurations][Configurations.TaxationType]
     if taxation_type == TaxationType.ProgressiveRate or taxation_type == TaxationType.FlatRate:
@@ -2245,64 +2678,136 @@ def calculate_tax(tax:dict, person:Person, converter:dict):
         caps = tax[TaxVariables.TaxCaps]
         tax_value = adjust_tax_value_for_its_caps(tax_value, caps, person, converter)
     return tax_value
-def meets_tax_requirements_according_to_its_rules(tax:dict, person:Person, converter:dict):
-    requirements_configurations = tax[TaxVariables.TaxRequirements][TaxRequirement.TaxRequirementsConfiguration]
-    validation_rule = requirements_configurations[TaxRequirementsConfiguration.RequirementsToMeet]
-    requirements = tax[TaxVariables.TaxRequirements]
+def find_bracket(agi, brackets:dict, highest_bracket:int):
+    bracket = highest_bracket
+    while bracket > 1:
+        if agi > brackets[bracket-1]:
+            break
+        else:
+            bracket -= 1
+    return bracket
+def apply_rate(brackets ,bracket, rates, agi):
+    accumulated_tax = Tax(Decimal("0"))
+    order = bracket
+    while order > 1:
+        portion_to_tax = (agi-brackets[order-1])
+        # print(f'''Portion: {portion_to_tax}, rate:{rates[order]}, added tax:{portion_to_tax*rates[order]}''')
+        accumulated_tax += portion_to_tax*rates[order]
+        agi = brackets[order-1]
+        order-=1
+    accumulated_tax += agi*rates[order]
+    return accumulated_tax
+def adjust_tax_value_for_its_caps(tax_value, caps:dict, person, converter:dict):
+    processed_caps = calculate_tax_caps(caps, person, converter)
+    upper_limits = processed_caps[0]
+    lower_limits = processed_caps[1]
+    smallest_upper_limit = min(upper_limits)
+    greatest_lower_limit = max(lower_limits)
+    if tax_value >= greatest_lower_limit:
+        tax_value -= greatest_lower_limit
+        tax_value = min(tax_value, smallest_upper_limit)
+    else:
+        tax_value = Tax()
+    return tax_value
+def calculate_tax_cap(cap:dict, person, converter):
+    if cap[TaxCap.TaxCapType] == TaxCapType.TaxDynamicCap:
+        if cap.get(Values.DynamicValue):
+            cap_value =  vperson_to_person_attribute(cap[Values.DynamicValue], person, converter)
+        else:
+            cap_value = calculate_smart_values(cap[Values.SmartValueA], cap[Values.SmartValueB], cap[Values.InterValuesOperation], person, converter)
+    else:
+        cap_value = cap[Values.FixedValue]
+    capping_method = cap[TaxCap.TaxLimitType]
+    return cap_value, capping_method
+def calculate_tax_caps(caps:dict, person, converter):
+    upper_limits = []
+    lower_limits = []
+    for cap in caps.values():
+        cap_result = calculate_tax_cap(cap, person, converter)
+        if cap_result[1] == TaxLimitType.UpperLimitTaxCap:
+            upper_limits.append(cap_result[0])
+        elif cap_result[1] == TaxLimitType.LowerLimitTaxCap:
+            lower_limits.append(cap_result[0])
+    if not upper_limits:
+        upper_limits.append(Money(Decimal("Infinity")))
+    if not lower_limits:
+        lower_limits.append(Money())
+    return upper_limits, lower_limits
+def vperson_to_person_attribute(vperson, person, converter):
+    if isinstance(vperson, VPerson):
+        if vperson in converter:
+            attribute_name = converter[vperson]["attribute name"]
+            if hasattr(person, attribute_name):
+                return getattr(person, attribute_name)
+            else:
+                return converter[vperson]["default value"]
+def check_for_contradiction_in_requirements(requirements:dict):
+    for requirement_name, requirement_data in requirements.items():
+        if requirement_name != Requirement.RequirementsConfiguration:
+            pass # that's alot of shit to do.
+
+
+# Requirements
+
+
+
+def meets_requirements_according_to_its_rules(requirements:dict, person, converter:dict):
+    requirements_configurations = requirements[Requirement.RequirementsConfiguration]
+    validation_rule = requirements_configurations[RequirementsConfiguration.RequirementsToMeet]
     if validation_rule == RequirementsToMeet.MustMeetAll:
-        if meets_all_tax_requirements(requirements, person, converter):
+        if meets_all_requirements(requirements, person, converter):
             return True
     elif validation_rule == RequirementsToMeet.MustMeetAny:
-        if meets_any_of_the_tax_requirements(requirements, person, converter):
+        if meets_any_of_the_requirements(requirements, person, converter):
             return True
     elif validation_rule == RequirementsToMeet.MustMeetAnyOf:
-        if meets_any_given_list_of_tax_requirements(tax, person, converter):
+        if meets_any_given_list_of_requirements(requirements, person, converter):
             return True
     elif validation_rule == RequirementsToMeet.MustMeetSpecificCount:
-        if meets_specific_tax_requirements_count(tax, person, converter):
+        if meets_specific_requirements_count(requirements, person, converter):
             return True
-def meets_specific_tax_requirements_count(tax:dict, person:Person, converter:dict):
-    count_to_meet = tax[TaxVariables.TaxRequirements][TaxRequirement.TaxRequirementsConfiguration][TaxRequirementsConfiguration.SpecifiedRequirementsCount]
+def meets_specific_requirements_count(requirements:dict, person, converter:dict):
+    count_to_meet = requirements[Requirement.RequirementsConfiguration][RequirementsConfiguration.SpecifiedRequirementsCount]
     count_of_met = 0
-    requirements = tax[TaxVariables.TaxRequirements].copy()
-    requirements.pop(TaxRequirement.TaxRequirementsConfiguration)
+    requirements = requirements.copy()
+    requirements.pop(Requirement.RequirementsConfiguration)
     for requirement in requirements.values():
-        if meet_a_given_tax_requirement(requirement, person, converter):
+        if meet_a_given_requirement(requirement, person, converter):
             count_of_met += 1
-    if count_of_met == count_to_meet:
+    if count_of_met >= count_to_meet:
         return True
-def meets_any_given_list_of_tax_requirements(tax:dict, person:Person, converter:dict): # "list_of_big_requirements_indexes_list", bad English, I know.
+def meets_any_given_list_of_requirements(requirements:dict, person, converter:dict): # "list_of_big_requirements_indexes_list", bad English, I know.
     meet_those_group_of_reqs = False
-    list_of_requirements_indices_list = tax[TaxVariables.TaxRequirements][TaxRequirement.TaxRequirementsConfiguration][TaxRequirementsConfiguration.SpecifiedRequirements]
+    list_of_requirements_indices_list = requirements[Requirement.RequirementsConfiguration][RequirementsConfiguration.SpecifiedRequirements]
     for inner_list_of_indices in list_of_requirements_indices_list:
         meet_those_group_of_reqs = True
         inner_list_of_reqs = []
         for index in inner_list_of_indices:
-            req = tax.get(TaxVariables.TaxRequirements, {}).get(index)
+            req = requirements[index]
             inner_list_of_reqs.append(req)
         for requirement in inner_list_of_reqs:
-            if not meet_a_given_tax_requirement(requirement, person, converter):
+            if not meet_a_given_requirement(requirement, person, converter):
                 meet_those_group_of_reqs = False
                 break
     return meet_those_group_of_reqs
-def meets_any_of_the_tax_requirements(requirements:dict, person:Person, converter:dict):
+def meets_any_of_the_requirements(requirements:dict, person, converter:dict):
     requirements = requirements.copy()
-    requirements.pop(TaxRequirement.TaxRequirementsConfiguration)
-    if any(meet_a_given_tax_requirement(requirement, person, converter) for requirement in requirements.values()):
+    requirements.pop(Requirement.RequirementsConfiguration)
+    if any(meet_a_given_requirement(requirement, person, converter) for requirement in requirements.values()):
         return True
-def meets_all_tax_requirements(requirements:dict, person:Person, converter:dict):
+def meets_all_requirements(requirements:dict, person, converter:dict):
     meets_requirements = True
     while meets_requirements:
         for requirement_name, requirement in requirements.items():
-            if requirement_name != TaxRequirement.TaxRequirementsConfiguration:
-                if not meet_a_given_tax_requirement(requirement, person, converter):
+            if requirement_name != Requirement.RequirementsConfiguration:
+                if not meet_a_given_requirement(requirement, person, converter):
                     meets_requirements = False
         break
     return meets_requirements
-def meet_a_given_tax_requirement(requirement:dict, person:Person, converter:dict):
-    value_in_question = requirement[TaxRequirement.ValueInQuestion]
-    comparison_value = requirement[TaxRequirement.ComparisonValue]
-    comparison_operator = requirement[TaxRequirement.ComparisonOperator]
+def meet_a_given_requirement(requirement:dict, person, converter:dict):
+    value_in_question = requirement[Requirement.ValueInQuestion]
+    comparison_value = requirement[Requirement.ComparisonValue]
+    comparison_operator = requirement[Requirement.ComparisonOperator]
     if isinstance(value_in_question, dict):
         value_in_question = calculate_smart_values_from_dictionary(value_in_question, person, converter)
     elif isinstance(value_in_question, VPerson):
@@ -2331,46 +2836,142 @@ def meet_a_given_tax_requirement(requirement:dict, person:Person, converter:dict
             return True
 
     return False
-def is_a_smart_value(something):
-    if isinstance(something, dict):
-        smart_a = something.get(Values.SmartValueA)
-        smart_b = something.get(Values.SmartValueB)
-        operation = something.get(Values.InterValuesOperation)
-        if verify_smart_values_integrity(smart_a, smart_b, operation):
-            return True
-def is_valid_and_safe_smart_values(something):
-    if isinstance(something, dict):
-        smart_a = something.get(Values.SmartValueA)
-        smart_b = something.get(Values.SmartValueB)
-        operation = something.get(Values.InterValuesOperation)
-        if verify_smart_values_integrity(smart_a, smart_b, operation) and verify_smart_values_safety(smart_a, smart_b, operation):
-            return True
-def find_bracket(agi, brackets:dict, highest_bracket:int):
-    bracket = highest_bracket
-    while bracket > 1:
-        if agi > brackets[bracket-1]:
-            break
-        else:
-            bracket -= 1
-    return bracket
-def apply_rate(brackets ,bracket, rates, agi):
-    accumulated_tax = Tax(Decimal("0"))
-    order = bracket
-    while order > 1:
-        portion_to_tax = (agi-brackets[order-1])
-        # print(f'''Portion: {portion_to_tax}, rate:{rates[order]}, added tax:{portion_to_tax*rates[order]}''')
-        accumulated_tax += portion_to_tax*rates[order]
-        agi = brackets[order-1]
-        order-=1
-    accumulated_tax += agi*rates[order]
-    return accumulated_tax
+
+
+
+# Json Parsing
+
+
+
+def str_to_object(string, enums_list:list):
+    financial_units_markers = {
+        "MoneyInCents ": Money,
+        "TaxInCents ": Tax,
+        "LiabilityInCents ": Liability,
+        "StandardFinancialUnitInCents": StandardFinancialUnit,
+    }
+    if isinstance(string, str):
+        for marker, cls in financial_units_markers.items():
+            if marker in string:
+                stripped_string = string.replace(marker, "")
+                try:
+                    return cls(Decimal(stripped_string))
+                except decimal.InvalidOperation:
+                    pass
+                except  ValueError:
+                    return "Negative Financial unit crab."
+        if "Decimal " in string:
+            stripped_string = string.replace("Decimal ", "")
+            try:
+                return Decimal(stripped_string)
+            except decimal.InvalidOperation:
+                pass
+        elif "ThisIsADateTimeObject" in string:
+            the_iso_format = string.replace("ThisIsADateTimeObject", "")
+            return datetime.datetime.fromisoformat(the_iso_format)
+        elif string.isdigit():
+            return int(string)
+        for an_enum in enums_list:
+            try:
+                return an_enum[string]
+            except KeyError:
+                pass
+        return string
+def dict_to_object(dictionary, enums_list):
+    if dictionary.get("ThisKeyIsReservedForTypesOnly") == "relativedelta":
+        dictionary.pop("ThisKeyIsReservedForTypesOnly")
+        valid_keys = {
+            "years", "months", "days", "hours", "minutes", "seconds", "microseconds",
+            "leapdays", "weeks", "year", "month", "day", "hour", "minute", "second",
+            "microsecond", "yearday", "weekday", "nth"
+        }
+        filtered_data = {key: its_value for key, its_value in dictionary.items() if key in valid_keys}
+        try:
+            return relativedelta(**filtered_data)
+        except TypeError:
+            return dictionary
+    if isinstance(dictionary, dict):
+        keys_list = list(dictionary.keys())
+        for key in keys_list:
+            dictionary[str_to_object(key, enums_list)] = dictionary.pop(key)
+        for key, value in dictionary.items():
+            if isinstance(value, str):
+                dictionary[key] = str_to_object(value, enums_list)
+            elif isinstance(value, dict):
+                dictionary[key] = dict_to_object(value, enums_list)
+    return dictionary
+def list_to_object(a_list, enums_list):
+    if isinstance(a_list, list):
+        for i in range(len(a_list)):
+            if isinstance(a_list[i], str):
+                a_list[i] = str_to_object(a_list[i], enums_list)
+            elif isinstance(a_list[i], dict):
+                a_list[i] = dict_to_object(a_list[i], enums_list)
+            elif isinstance(a_list[i], list):
+                a_list[i] = list_to_object(a_list[i], enums_list)
+        return a_list
+def restore_objects(something, enums_list):
+    if isinstance(something, str):
+        return str_to_object(something, enums_list)
+    elif isinstance(something, dict):
+        return dict_to_object(something, enums_list)
+    elif isinstance(something, list):
+        return list_to_object(something, enums_list)
+def smart_serializer(obj):
+    if isinstance(obj, Decimal):
+        return f"Decimal {obj}"
+    elif isinstance(obj, Money):
+        return f"MoneyInCents {obj.amount}"
+    elif isinstance(obj, Tax):
+        return f"TaxInCents {obj.amount}"
+    elif isinstance(obj, Liability):
+        return f"LiabilityInCents {obj.amount}"
+    elif isinstance(obj, StandardFinancialUnit):
+        return f"StandardFinancialUnitInCents {obj.amount}"
+    elif isinstance(obj, relativedelta):
+        relativedelta_data = obj.__dict__.copy()
+        relativedelta_data["ThisKeyIsReservedForTypesOnly"] = "relativedelta"
+        return relativedelta_data
+    elif isinstance(obj, datetime.datetime):
+        the_iso_format = obj.isoformat()
+        return f'''ThisIsADateTimeObject{the_iso_format}'''
+    else:
+        raise TypeError(f"Not serializable, bro, type is {type(obj)}")
+def export_variables(variables:dict, json_file_name:str):
+    with open(f"{json_file_name}.json", "w") as f:
+        # noinspection PyTypeChecker
+        json.dump(variables, f, default=smart_serializer, indent=4)
+def import_variables(json_file_name:str):
+    with open(f"{json_file_name}.json", "r") as f:
+        loaded_raw = json.load(f)
+    restored_back = restore_objects(loaded_raw, all_enums)
+    return restored_back
+
+
+
+
+def vperson_dictionary_to_person_attribute(variables:dict, person:Person, converter):
+    for key, its_value in variables.items():
+        if isinstance(its_value, VPerson):
+            variables[key] = vperson_to_person_attribute(its_value, person, converter)
+        elif isinstance(its_value, dict):
+            variables[key] = vperson_dictionary_to_person_attribute(its_value, person, converter)
+    return variables
+def apply_raw_deductibles(dictionary:dict, person:Person, converter):
+    for key, its_value in dictionary.items():
+        if isinstance(its_value, dict):
+            apply_raw_deductibles(its_value, person, converter)
+        elif key == ItemItemization.DeductibleValue:
+            dictionary[key] = vperson_to_person_attribute(its_value, person, converter)
+    return dictionary
 def process_taxes(taxes:dict, person:Person, converter:dict):
     taxes_output = {}
     for tax in taxes.values():
         tax_name = str(tax[TaxVariables.TaxConfigurations][Configurations.TaxName]).replace("StandardTaxName.", "")
-        have_requirements = tax[TaxVariables.TaxConfigurations][Configurations.TaxHaveRequirements]
+        have_requirements = tax[TaxVariables.TaxConfigurations][Configurations.HaveRequirements]
         if have_requirements:
-            if meets_tax_requirements_according_to_its_rules(tax, person, converter):
+            requirements = tax[TaxVariables.TaxRequirements]
+            if meets_requirements_according_to_its_rules(requirements, person, converter):
                 tax_value = calculate_tax(tax, person, converter)
             else:
                 tax_value = "Tax Requirements not met."
@@ -2378,42 +2979,6 @@ def process_taxes(taxes:dict, person:Person, converter:dict):
             tax_value = calculate_tax(tax, person, converter)
         taxes_output[tax_name] = tax_value
     return taxes_output
-def calculate_tax_cap(cap:dict, person, converter):
-    if cap[TaxCap.TaxCapType] == TaxCapType.TaxDynamicCap:
-        if cap.get(Values.DynamicValue):
-            cap_value =  vperson_to_person_attribute(cap[Values.DynamicValue], person, converter)
-        else:
-            cap_value = calculate_smart_values(cap[Values.SmartValueA], cap[Values.SmartValueB], cap[Values.InterValuesOperation], person, converter)
-    else:
-        cap_value = cap[Values.FixedValue]
-    capping_method = cap[TaxCap.TaxLimitType]
-    return cap_value, capping_method
-def calculate_tax_caps(caps:dict, person, converter):
-    upper_limits = []
-    lower_limits = []
-    for cap in caps.values():
-        cap_result = calculate_tax_cap(cap, person, converter)
-        if cap_result[1] == TaxLimitType.UpperLimitTaxCap:
-            upper_limits.append(cap_result[0])
-        elif cap_result[1] == TaxLimitType.LowerLimitTaxCap:
-            lower_limits.append(cap_result[0])
-    if not upper_limits:
-        upper_limits.append(Money(Decimal("Infinity")))
-    if not lower_limits:
-        lower_limits.append(Money())
-    return upper_limits, lower_limits
-def adjust_tax_value_for_its_caps(tax_value, caps:dict, person:Person, converter:dict):
-    processed_caps = calculate_tax_caps(caps, person, converter)
-    upper_limits = processed_caps[0]
-    lower_limits = processed_caps[1]
-    smallest_upper_limit = min(upper_limits)
-    greatest_lower_limit = max(lower_limits)
-    if tax_value >= greatest_lower_limit:
-        tax_value -= greatest_lower_limit
-        tax_value = min(tax_value, smallest_upper_limit)
-    else:
-        tax_value = Tax()
-    return tax_value
 
 if __name__ == '__main__':
     p = Person()
@@ -2427,150 +2992,44 @@ if __name__ == '__main__':
     setattr(p, "private_cash_donations", Money(Decimal("10000000")))  # $100,000
     setattr(p, "investment_interest_expense", Liability(Decimal("12000000")))  # $120,000
     setattr(p, "total_debt_based_investment_earnings", Money(Decimal("8000000")))  # $80,000 (caps investment deduction)
-    test_item = {
-                    ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
-                    ItemItemization.DeductibleValue: VPerson.VMortgageInterest,
-                    ItemItemization.CapsAppliedCount: 1,
-                    ItemItemization.ItemizationCaps:{
-                        1: {
-                        ItemItemization.LimitType: LimitType.UpperLimit,
-                        ItemItemization.ItemizationCapType: ItemizationCapType.FixedCap,
-                        Values.FixedValue: Money(Decimal("75000000")),
-                        },
-                    },
-                    ItemItemization.Note: "Mortgages taken before 2018 have a cap of 1M, while after 2018 is capped at 750k.",
+    # print(p.federal_final_agi)
+    some_requirements = {
+                Requirement.RequirementsConfiguration:{
+                    RequirementsConfiguration.RequirementsToMeet: RequirementsToMeet.MustMeetSpecificCount,
+                    RequirementsConfiguration.SpecifiedRequirements: [[1, 2]],
+                    RequirementsConfiguration.SpecifiedRequirementsCount: 2,
+                },
+                1: {
+                    Requirement.ValueInQuestion: VPerson.VFederalFinalAGI,
+                    Requirement.ComparisonValue: Money(Decimal("100000000")),
+                    Requirement.ComparisonOperator: ComparisonOperator.GreaterOrEqual,
+                },
+                2: {
+                    Requirement.ValueInQuestion: VPerson.VStatus,
+                    Requirement.ComparisonValue: MaritalStatus.Single,
+                    Requirement.ComparisonOperator: ComparisonOperator.Equal,
+                },
+                3: {
+                    Requirement.ValueInQuestion: VPerson.VStatus,
+                    Requirement.ComparisonValue: MaritalStatus.MarriedJoint,
+                    Requirement.ComparisonOperator: ComparisonOperator.Equal,
                 }
-    # print(p.federal_final_agi)
-    # reqs = {
-    #         1: {
-    #             TaxRequirement.ValueInQuestion: VPerson.VGrossIncome,
-    #             TaxRequirement.ComparisonValue: Money(Decimal("100000000")),
-    #             TaxRequirement.ComparisonOperator: ComparisonOperator.GreaterOrEqual,
-    #         },
-    #     }
-    # random_tax = {
-    #     TaxVariables.TaxRequirements: reqs
-    # }
-    # print(meets_tax_requirements(random_tax, p, vperson_to_person_attributes))
+            }
     # print(nested_dictionary_reader(verify_variables_viability_and_integrity(standard_variables)))
-    print(nested_dictionary_reader(process_taxes(standard_variables[Variables.Taxes], p, vperson_to_person_attributes)))
-    # print(p.federal_final_agi)
-    # noinspection PyTypeChecker
-    # print(nested_dictionary_reader(process_taxes(standard_variables[Variables.Taxes], p, vperson_to_person_attributes)))
-    p.state = State.California
-    # print(verify_taxes_integrity(random_taxes))
-    # print(p.state_final_agi)
+    print(nested_dictionary_reader(verify_variables_viability_and_integrity(standard_variables)))
+    # print(nested_dictionary_reader(process_taxes(california_variables[Variables.Taxes], p, vperson_to_person_attributes)))
     # p.state = State.NewYork
-    # standard_user_preference[Preference.TaxPreference][TaxPreference.PreferredDeductionType][Jurisdiction.State] = PreferredDeductionType.PreferStandardized
+    # print(nested_dictionary_reader(process_taxes(standard_variables[Variables.Taxes], p, vperson_to_person_attributes)))
+    # print(p.federal_base_agi)
     # print(p.federal_final_agi)
-    # print(p.state_deductions)
-    # noinspection PyTypeChecker
-    # print(nested_dictionary_reader(my_items[Itemization.TotalDonations]))
-    # print(nested_dictionary_reader(verify_items(my_items, True)))
+    # print(vperson_to_person_attribute(VPerson.VMedicalExpenses, p, vperson_to_person_attributes))
     # print(nested_dictionary_reader(verify_variables_viability_and_integrity(standard_variables)))
-    # print(getattr(p, "federal_final_agi"))
-    from decimal import Decimal
-
-    # a_result = verify_variables_viability_and_integrity(new_york_variables, True)
-    # print(nested_dictionary_reader(a_result))
-    test_smart_values = {
-        Values.SmartValueA: {
-            Values.SmartValueA: {
-                Values.SmartValueA: Decimal(5),
-                Values.SmartValueB: {
-                    Values.SmartValueA: Decimal(2),
-                    Values.SmartValueB: Decimal(3),
-                    Values.InterValuesOperation: InterValuesOperation.Multiplication
-                },
-                Values.InterValuesOperation: InterValuesOperation.Addition
-            },
-            Values.SmartValueB: {
-                Values.SmartValueA: {
-                    Values.SmartValueA: {
-                        Values.SmartValueA: Decimal(10),
-                        Values.SmartValueB: Decimal(2),
-                        Values.InterValuesOperation: InterValuesOperation.Multiplication
-                    },
-                    Values.SmartValueB: {
-                        Values.SmartValueA: Decimal(4),
-                        Values.SmartValueB: Decimal(2),
-                        Values.InterValuesOperation: InterValuesOperation.Subtraction
-                    },
-                    Values.InterValuesOperation: InterValuesOperation.Addition
-                },
-                Values.SmartValueB: {
-                    Values.SmartValueA: Decimal(8),
-                    Values.SmartValueB: {
-                        Values.SmartValueA: Decimal(3),
-                        Values.SmartValueB: Decimal(1),
-                        Values.InterValuesOperation: InterValuesOperation.Addition
-                    },
-                    Values.InterValuesOperation: InterValuesOperation.Multiplication
-                },
-                Values.InterValuesOperation: InterValuesOperation.Subtraction
-            },
-            Values.InterValuesOperation: InterValuesOperation.Multiplication
-        },
-        Values.SmartValueB: {
-            Values.SmartValueA: {
-                Values.SmartValueA: {
-                    Values.SmartValueA: Decimal(6),
-                    Values.SmartValueB: Decimal(2),
-                    Values.InterValuesOperation: InterValuesOperation.Division
-                },
-                Values.SmartValueB: {
-                    Values.SmartValueA: {
-                        Values.SmartValueA: Decimal(4),
-                        Values.SmartValueB: Decimal(2),
-                        Values.InterValuesOperation: InterValuesOperation.Multiplication
-                    },
-                    Values.SmartValueB: {
-                        Values.SmartValueA: Decimal(3),
-                        Values.SmartValueB: Decimal(1),
-                        Values.InterValuesOperation: InterValuesOperation.Subtraction
-                    },
-                    Values.InterValuesOperation: InterValuesOperation.FloorSubtraction
-                },
-                Values.InterValuesOperation: InterValuesOperation.Addition
-            },
-            Values.SmartValueB: {
-                Values.SmartValueA: {
-                    Values.SmartValueA: Decimal(7),
-                    Values.SmartValueB: {
-                        Values.SmartValueA: Decimal(2),
-                        Values.SmartValueB: Decimal(5),
-                        Values.InterValuesOperation: InterValuesOperation.Multiplication
-                    },
-                    Values.InterValuesOperation: InterValuesOperation.Subtraction
-                },
-                Values.SmartValueB: {
-                    Values.SmartValueA: Decimal(9),
-                    Values.SmartValueB: {
-                        Values.SmartValueA: Decimal(3),
-                        Values.SmartValueB: Decimal(1),
-                        Values.InterValuesOperation: InterValuesOperation.Addition
-                    },
-                    Values.InterValuesOperation: InterValuesOperation.Division
-                },
-                Values.InterValuesOperation: InterValuesOperation.Multiplication
-            },
-            Values.InterValuesOperation: InterValuesOperation.Addition
-        },
-        Values.InterValuesOperation: InterValuesOperation.Subtraction
-    }
-    # a_damn_result = verify_taxes_integrity(random_taxes)
-    # print(a_damn_result)
-
-    # print(calculate_smart_values(test_smart_values[Values.SmartValueA], test_smart_values[Values.SmartValueB], test_smart_values[Values.InterValuesOperation], p, vperson_to_person_attributes))
-    # print(verify_smart_values_integrity(test_smart_values[Values.SmartValueA], test_smart_values[Values.SmartValueB], test_smart_values[Values.InterValuesOperation]))
-
-    # print(nested_dictionary_reader(process_taxes(some_taxes, p, vperson_to_person_attributes)))
-    # import  json
-    # with open("StandardVariablesParsed.json", "w") as f:
-    #     # noinspection PyTypeChecker
-    #     json.dump(standard_variables, f, default=smart_serializer)
-    # with open("FurtherCorruptedVariables.json", "r") as f:
-    #     loaded_raw = json.load(f)
-    #
-    # restored_back = restore_objects(loaded_raw, all_enums)
-    # print(nested_dictionary_reader(verify_variables_viability_and_integrity(restored_back)))
+    # export_variables(standard_variables, "NewStandards")
+    # new_standards = import_variables("NewStandards")
+    # print(nested_dictionary_reader(verify_variables_viability_and_integrity(new_standards)))
+    # for k in new_standards.keys():
+    #     print(f"Key: {k}, Type: {type(k)}")
+    # print(nested_dictionary_reader(verify_variables_viability_and_integrity(standard_variables)))
+    # items = standard_variables[Variables.TaxBenefits][TaxBenefits.Deduction][Deduction.Itemization]
+    # print(calculate_future_deferrals(items, p, vperson_to_person_attributes))
+    # print(nested_dictionary_reader(process_taxes(standard_variables[Variables.Taxes], p, vperson_to_person_attributes)))
