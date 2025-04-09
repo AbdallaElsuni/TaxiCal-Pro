@@ -4,7 +4,7 @@ from Cities import *
 from decimal import Decimal
 import decimal
 from datetime import datetime
-import datetime, sys
+import sys
 from dateutil.relativedelta import relativedelta
 import json
 from LookUpInNestedDictionary import lookup_values_in_nested
@@ -287,8 +287,8 @@ class Liability(StandardFinancialUnit):
         self.status = PaymentStatus.Paid
 class Tax(Liability):
     pass
-class Deferral(StandardFinancialUnit):
-    def __init__(self, amount=Decimal("0"), date_issued:datetime = datetime.datetime.min, expiry_date:datetime = datetime.datetime.max, set_of_rules:dict=None):
+class CarryOver(StandardFinancialUnit):
+    def __init__(self, amount=Decimal("0"), date_issued:datetime = datetime.min, expiry_date:datetime = datetime.max, set_of_rules:dict=None):
         super().__init__(amount)
         if isinstance(date_issued, datetime):
             self.issued = date_issued
@@ -300,30 +300,26 @@ class Deferral(StandardFinancialUnit):
             raise TypeError("expiry_date is not of datetime class.")
         if set_of_rules is None:
             set_of_rules = {
-                DeferralRules.HaveUseItOrLoseItAnnualAllocation: True,
-                DeferralRules.OneTimeUse: False,
-                DeferralRules.AnnualAllocation: {
-                    Values.SmartValueA: DynamicContextBasedValue.XDeferral,
-                    Values.SmartValueB: Decimal("0.2"),
+                CarryOverRules.HaveUseItOrLoseItAnnualAllocation: True,
+                CarryOverRules.OneTimeUse: False,
+                CarryOverRules.AnnualAllocation: {
+                    Values.SmartValueA: StandardFinancialUnit(self.amount),
+                    Values.SmartValueB: Decimal("0.1"),  # More common 10% cap
                     Values.InterValuesOperation: InterValuesOperation.Multiplication
                 },
-                DeferralRules.OffsetTargets: {
+                CarryOverRules.OffsetTargets: {
                     1: {
-                        DeferralOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
-                        DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.DynamicOffsetLimit,
-                        DeferralOffsetTarget.OffsetLimit: {
-                            Values.SmartValueA: VPerson.VCapitalGain,
-                            Values.SmartValueB: Decimal("0.2"),
+                        CarryOverOffsetTarget.OffsetTargetType: OffsetTargetType.StandardTax,
+                        CarryOverOffsetTarget.OffsetTarget: StandardTaxName.FederalIncomeTax,
+                        CarryOverOffsetTarget.OffsetLimitType: CarryOverOffsetLimitType.DynamicOffsetLimit,
+                        CarryOverOffsetTarget.OffsetLimit: {
+                            Values.SmartValueA: VPerson.VFederalFinalAGI,
+                            Values.SmartValueB: Decimal("0.1"),  # 10% of AGI
                             Values.InterValuesOperation: InterValuesOperation.Multiplication
                         },
                     },
-                    2: {
-                        DeferralOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
-                        DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.FixedOffsetLimit,
-                        DeferralOffsetTarget.OffsetLimit: Money(Decimal("300000")),
-                    },
                 },
-            }
+            },
         self.rules = set_of_rules
     def money_format(self):
         return super().__str__()
@@ -344,6 +340,33 @@ class TaxCredit(StandardFinancialUnit):
         else:
             raise NotImplementedError
 
+deferral_set_of_rules_example =  {
+                CarryOverRules.HaveUseItOrLoseItAnnualAllocation: True,
+                CarryOverRules.OneTimeUse: False,
+                CarryOverRules.AnnualAllocation: {
+                    Values.SmartValueA: DynamicContextBasedValue.XCarryOver,
+                    Values.SmartValueB: Decimal("0.2"),
+                    Values.InterValuesOperation: InterValuesOperation.Multiplication
+                },
+                CarryOverRules.OffsetTargets: {
+                    1: {
+                        CarryOverOffsetTarget.OffsetTargetType: OffsetTargetType.VPerson,
+                        CarryOverOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
+                        CarryOverOffsetTarget.OffsetLimitType: CarryOverOffsetLimitType.DynamicOffsetLimit,
+                        CarryOverOffsetTarget.OffsetLimit: {
+                            Values.SmartValueA: VPerson.VCapitalGain,
+                            Values.SmartValueB: Decimal("0.2"),
+                            Values.InterValuesOperation: InterValuesOperation.Multiplication
+                        },
+                    },
+                    2: {
+                        CarryOverOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
+                        CarryOverOffsetTarget.OffsetLimitType: CarryOverOffsetLimitType.FixedOffsetLimit,
+                        CarryOverOffsetTarget.OffsetLimit: Money(Decimal("300000")),
+                    },
+                },
+            }
+
 
 
 # Verification
@@ -360,58 +383,88 @@ def verify_variables_viability_and_integrity(variables:dict, break_for_ultra_saf
         CheckResults.SafetyFailureCode: None,
     }
     verifier_version = 1
-    required_verifier_version = variables.get(Variables.Configurations, {}).get(Configurations.VerifierConfigurations, {}).get(VerifierConfigurations.RequiredVerifierVersion)
-    if verifier_version == required_verifier_version:
-        result[CheckResults.ViabilityForChecking] = True
-    else:
-        if verifier_version > required_verifier_version:
-            forward_compatibility = variables.get(Variables.Configurations, {}).get(Configurations.VerifierConfigurations, {}).get(VerifierConfigurations.SupportsForwardCompatibility)
-            if forward_compatibility:
+    if isinstance(variables, dict):
+        required_verifier_version = variables.get(Variables.Configurations, {}).get(
+            Configurations.VerifierConfigurations, {}).get(VerifierConfigurations.RequiredVerifierVersion)
+        if all(isinstance(version, int) for version in [verifier_version, required_verifier_version]):
+            if verifier_version == required_verifier_version:
                 result[CheckResults.ViabilityForChecking] = True
-        else:
-            backward_compatibility = variables.get(Variables.Configurations, {}).get(Configurations.VerifierConfigurations, {}).get(VerifierConfigurations.SupportsBackwardCompatibility)
-            if backward_compatibility:
-                result[CheckResults.ViabilityForChecking] = True
-    if result[CheckResults.ViabilityForChecking]:
-        if variables.get(Variables.Taxes):
-            if isinstance(variables.get(Variables.Taxes), dict):
-                taxes_verification_result = verify_taxes_integrity(variables.get(Variables.Taxes, {}),break_for_ultra_safety)
-                if not taxes_verification_result[CheckResults.Integrity] or not taxes_verification_result[CheckResults.Safety]:
-                    result = taxes_verification_result
             else:
-                result[CheckResults.IntegrityFailureCode] = "Taxes are not a dictionary"
+                if verifier_version > required_verifier_version:
+                    forward_compatibility = variables.get(Variables.Configurations, {}).get(
+                        Configurations.VerifierConfigurations, {}).get(
+                        VerifierConfigurations.SupportsForwardCompatibility)
+                    if forward_compatibility:
+                        result[CheckResults.ViabilityForChecking] = True
+                else:
+                    backward_compatibility = variables.get(Variables.Configurations, {}).get(
+                        Configurations.VerifierConfigurations, {}).get(
+                        VerifierConfigurations.SupportsBackwardCompatibility)
+                    if backward_compatibility:
+                        result[CheckResults.ViabilityForChecking] = True
+        else:
+            result = {
+                CheckResults.ViabilityForChecking: False,
+                CheckResults.Integrity: UnKnown,
+                CheckResults.IntegrityFailureCode: None,
+                CheckResults.Safety: UnKnown,
+                CheckResults.UltraSafety: UnKnown,
+                CheckResults.SafetyFailureCode: None,
+            }
+        if result[CheckResults.ViabilityForChecking]:
+            if variables.get(Variables.Taxes):
+                if isinstance(variables.get(Variables.Taxes), dict):
+                    taxes_verification_result = verify_taxes_integrity(variables.get(Variables.Taxes, {}),
+                                                                       break_for_ultra_safety)
+                    if not taxes_verification_result[CheckResults.Integrity] or not taxes_verification_result[
+                        CheckResults.Safety]:
+                        result = taxes_verification_result
+                else:
+                    result[CheckResults.IntegrityFailureCode] = "Taxes are not a dictionary"
+                    result[CheckResults.Integrity] = False
+                    result[CheckResults.Safety] = False
+                    result[CheckResults.SafetyFailureCode] = "Failure due to Integrity failure."
+            else:
+                result[CheckResults.IntegrityFailureCode] = "Taxes are missing."
+                result[CheckResults.Integrity] = False
+                result[CheckResults.Safety] = False
+                result[CheckResults.SafetyFailureCode] = "Failure due to Integrity failure."
+            if variables.get(Variables.TaxBenefits):
+                if isinstance(variables.get(Variables.TaxBenefits), dict):
+                    tax_benefits_verification_result = verify_tax_benefits(variables.get(Variables.TaxBenefits),
+                                                                           break_for_ultra_safety)
+                    if not tax_benefits_verification_result[CheckResults.Integrity] or not \
+                    tax_benefits_verification_result[CheckResults.Safety]:
+                        result = tax_benefits_verification_result
+                else:
+                    result[CheckResults.IntegrityFailureCode] = "Tax Benefits are not a dictionary"
+                    result[CheckResults.Integrity] = False
+                    result[CheckResults.Safety] = False
+                    result[CheckResults.SafetyFailureCode] = "Failure due to Integrity failure."
+            else:
+                result[CheckResults.IntegrityFailureCode] = "Tax Benefits are missing."
                 result[CheckResults.Integrity] = False
                 result[CheckResults.Safety] = False
                 result[CheckResults.SafetyFailureCode] = "Failure due to Integrity failure."
         else:
-            result[CheckResults.IntegrityFailureCode] = "Taxes are missing."
-            result[CheckResults.Integrity] = False
-            result[CheckResults.Safety] = False
-            result[CheckResults.SafetyFailureCode] = "Failure due to Integrity failure."
-        if variables.get(Variables.TaxBenefits):
-            if isinstance(variables.get(Variables.TaxBenefits), dict):
-                tax_benefits_verification_result = verify_tax_benefits(variables.get(Variables.TaxBenefits),break_for_ultra_safety)
-                if not tax_benefits_verification_result[CheckResults.Integrity] or not tax_benefits_verification_result[CheckResults.Safety]:
-                    result = tax_benefits_verification_result
-            else:
-                result[CheckResults.IntegrityFailureCode] = "Tax Benefits are not a dictionary"
-                result[CheckResults.Integrity] = False
-                result[CheckResults.Safety] = False
-                result[CheckResults.SafetyFailureCode] = "Failure due to Integrity failure."
-        else:
-            result[CheckResults.IntegrityFailureCode] = "Tax Benefits are missing."
-            result[CheckResults.Integrity] = False
-            result[CheckResults.Safety] = False
-            result[CheckResults.SafetyFailureCode] = "Failure due to Integrity failure."
+            result = {
+                CheckResults.ViabilityForChecking: False,
+                CheckResults.Integrity: UnKnown,
+                CheckResults.IntegrityFailureCode: None,
+                CheckResults.Safety: UnKnown,
+                CheckResults.UltraSafety: UnKnown,
+                CheckResults.SafetyFailureCode: None,
+            }
     else:
         result = {
-        CheckResults.ViabilityForChecking: False,
-        CheckResults.Integrity: UnKnown,
-        CheckResults.IntegrityFailureCode: None,
-        CheckResults.Safety: UnKnown,
-        CheckResults.UltraSafety: UnKnown,
-        CheckResults.SafetyFailureCode: None,
-    }
+            CheckResults.ViabilityForChecking: False,
+            CheckResults.Integrity: False,
+            CheckResults.IntegrityFailureCode: f'''Invalid variable: variables is not of dict class, instead {type(variables)}.
+for valid variables please check https://github.com/AbdallaElsuni/TaxiCal-Pro''',
+            CheckResults.Safety: False,
+            CheckResults.UltraSafety: False,
+            CheckResults.SafetyFailureCode: None,
+        }
     return result
 def verify_taxes_integrity(taxes:dict, break_for_ultra_safety=False):
     result = {
@@ -734,27 +787,193 @@ def verify_tax_benefits(tax_benefits:dict, break_for_ultra_safety=False):
     integrity = True
     while integrity:
         deductions = tax_benefits.get(TaxBenefits.Deduction)
-        if isinstance(deductions, dict):
-            standard_deduction = deductions.get(Deduction.StandardDeduction)
-            standard_deduction_verification_result = verify_standard_deduction(standard_deduction)
-            if not standard_deduction_verification_result[CheckResults.Integrity]:
-                result[CheckResults.IntegrityFailureCode] = standard_deduction_verification_result[CheckResults.IntegrityFailureCode]
+        if deductions:
+            if isinstance(deductions, dict):
+                standard_deduction = deductions.get(Deduction.StandardDeduction)
+                standard_deduction_verification_result = verify_standard_deduction(standard_deduction)
+                if not standard_deduction_verification_result[CheckResults.Integrity]:
+                    result[CheckResults.IntegrityFailureCode] = standard_deduction_verification_result[
+                        CheckResults.IntegrityFailureCode]
+                    integrity = False
+                itemization = deductions.get(Deduction.Itemization)
+                itemization_verification_result = verify_items(itemization, break_for_ultra_safety)
+                if not itemization_verification_result[CheckResults.Integrity]:
+                    result = itemization_verification_result
+                    integrity = False
+            else:
+                result[CheckResults.IntegrityFailureCode] = f"Deduction is not a dictionary, instead {type(deductions)}"
                 integrity = False
-            itemization = deductions.get(Deduction.Itemization)
-            itemization_verification_result = verify_items(itemization, break_for_ultra_safety)
-            if not itemization_verification_result[CheckResults.Integrity]:
-                result = itemization_verification_result
-                integrity = False
+                break
         else:
-            result[CheckResults.IntegrityFailureCode] = f"Deduction is not a dictionary, instead {type(deductions)}"
+            result[CheckResults.IntegrityFailureCode] = f"Deductions are missing."
             integrity = False
+            break
         exemption = tax_benefits.get(TaxBenefits.Exemption)
         exemption_verification_result = verify_exemption(exemption)
         if not exemption_verification_result[CheckResults.Integrity]:
             result[CheckResults.IntegrityFailureCode] = exemption_verification_result[CheckResults.IntegrityFailureCode]
             integrity = False
+        tax_credits = tax_benefits.get(TaxBenefits.TaxCredit)
+        tax_credits_verification_result = verify_tax_credits(tax_credits)
+        integrity_or_safety_failure = [not tax_credits_verification_result[CheckResults.Integrity],
+                                       not tax_credits_verification_result[CheckResults.Safety]]
+        ultra_safety_break = [break_for_ultra_safety and not tax_credits_verification_result[CheckResults.Safety]]
+        if any(integrity_or_safety_failure) or ultra_safety_break:
+            result = tax_credits_verification_result
+            break
         break
     result[CheckResults.Integrity] = integrity
+    return result
+def verify_tax_credits(tax_credits:dict, break_for_ultra_safety=False):
+    result = {
+        CheckResults.Integrity: True,
+        CheckResults.IntegrityFailureCode: None,
+        CheckResults.Safety: True,
+        CheckResults.UltraSafety: True,
+        CheckResults.SafetyFailureCode: None,
+    }
+    for tax_credit_name, tax_credit_data in tax_credits.items():
+        if isinstance(tax_credit_data, dict):
+            tax_credit_verification_result = verify_tax_credit(tax_credit_data, break_for_ultra_safety)
+            integrity_or_safety_failure = [not tax_credit_verification_result[CheckResults.Integrity], not tax_credit_verification_result[CheckResults.Safety]]
+            ultra_safety_break = [break_for_ultra_safety and not tax_credit_verification_result[CheckResults.Safety]]
+            if any(integrity_or_safety_failure) or ultra_safety_break:
+                result = tax_credit_verification_result
+                break
+    if result[CheckResults.IntegrityFailureCode]:
+        # noinspection PyUnboundLocalVariable
+        result[CheckResults.IntegrityFailureCode] = f"Tax Credit Integrity failure: {tax_credit_name}: " + result[CheckResults.IntegrityFailureCode]
+    if result[CheckResults.SafetyFailureCode]:
+        # noinspection PyUnboundLocalVariable
+        result[CheckResults.SafetyFailureCode] = f"Tax Credit Integrity failure: {tax_credit_name}: " + result[CheckResults.SafetyFailureCode]
+    return result
+def verify_tax_credit(tax_credit:dict, break_for_ultra_safety=False):
+    result = {
+        CheckResults.Integrity: True,
+        CheckResults.IntegrityFailureCode: None,
+        CheckResults.Safety: True,
+        CheckResults.UltraSafety: True,
+        CheckResults.SafetyFailureCode: None,
+    }
+    configurations = tax_credit.get(TaxCreditData.TaxCreditConfigurations)
+    while True:
+        if configurations:
+            if isinstance(configurations, dict):
+                name_type = configurations.get(Configurations.TaxCreditNameType)
+                if name_type:
+                    if isinstance(name_type, NameType):
+                        name = configurations.get(Configurations.TaxCreditName)
+                        if not name:
+                            result[CheckResults.Integrity] = False
+                            result[CheckResults.IntegrityFailureCode] = "Tax Credit Name is missing."
+                            break
+                        if name_type == NameType.StandardName:
+                            if not isinstance(name, StandardTaxCreditName):
+                                result[CheckResults.Integrity] = False
+                                result[CheckResults.IntegrityFailureCode] = f"TaxCreditNameType is Standard, but TaxName is not of StandardTaxCreditName class."
+                                break
+                        else:
+                            if not isinstance(name, str):
+                                result[CheckResults.Integrity] = False
+                                result[
+                                    CheckResults.IntegrityFailureCode] = f"TaxCreditNameType is Custom, but TaxName is not a string."
+                                break
+                    else:
+                        result[CheckResults.Integrity] = False
+                        result[
+                            CheckResults.IntegrityFailureCode] = f"TaxCreditNameType is not of NameType class."
+                        break
+                else:
+                    result[CheckResults.Integrity] = False
+                    result[
+                        CheckResults.IntegrityFailureCode] = f"TaxCreditNameType is missing."
+                    break
+                tax_credit_value_type = configurations.get(Configurations.TaxCreditValueType)
+                if tax_credit_value_type:
+                    if isinstance(tax_credit_value_type, ValueType):
+                        tax_credit_value = configurations.get(Configurations.TaxCreditValue)
+                        if not tax_credit_value:
+                            result[CheckResults.Integrity] = False
+                            result[
+                                CheckResults.IntegrityFailureCode] = f"TaxCreditValue is missing."
+                            break
+                        if tax_credit_value_type == ValueType.FixedValue:
+                            if isinstance(tax_credit_value, StandardFinancialUnit):
+                                if tax_credit_value.amount == Decimal("0"):
+                                    result[CheckResults.Integrity] = False
+                                    result[
+                                        CheckResults.IntegrityFailureCode] = f"TaxCreditValue cannot be zero."
+                                    break
+                            else:
+                                result[CheckResults.Integrity] = False
+                                result[
+                                    CheckResults.IntegrityFailureCode] = f"TaxCreditValue is not of StandardFinancialUnit class."
+                                break
+                        elif tax_credit_value_type == ValueType.DynamicValue:
+                            dynamic_value_types = [VPerson]
+                            if not any(isinstance(tax_credit_value, cls) for cls in dynamic_value_types):
+                                result[CheckResults.Integrity] = False
+                                result[
+                                    CheckResults.IntegrityFailureCode] = f"TaxCreditValueType is set to dynamic, but TaxCreditValue is not Dynamic."
+                                break
+                        elif tax_credit_value_type == ValueType.SmartValue:
+                            if not is_valid_and_safe_smart_values(tax_credit_value):
+                                result[CheckResults.Integrity] = False
+                                result[
+                                    CheckResults.IntegrityFailureCode] = f"TaxCreditValue: Invalid Smart value."
+                                break
+                        else:
+                            result[CheckResults.Integrity] = False
+                            result[
+                                CheckResults.IntegrityFailureCode] = f"TaxCreditValueType: Invalid Value Type."
+                            break
+                    else:
+                        result[CheckResults.Integrity] = False
+                        result[
+                            CheckResults.IntegrityFailureCode] = f"TaxCreditValueType is not of ValueType class."
+                        break
+                else:
+                    result[CheckResults.Integrity] = False
+                    result[
+                        CheckResults.IntegrityFailureCode] = f"TaxCreditValueType is missing."
+                    break
+                have_requirements = configurations.get(Configurations.HaveRequirements)
+                if isinstance(have_requirements, bool):
+                    if have_requirements:
+                        requirements = tax_credit.get(TaxCreditData.TaxCreditRequirements)
+                        if requirements:
+                            if isinstance(requirements, dict):
+                                requirements_verification_results = verify_requirements(requirements)
+                                integrity_or_safety_failure = [not requirements_verification_results[CheckResults.Integrity], not requirements_verification_results[CheckResults.Safety]]
+                                ultra_safety_break = [break_for_ultra_safety and not requirements_verification_results[CheckResults.Safety]]
+                                if any(arg for arg in integrity_or_safety_failure) or ultra_safety_break:
+                                    result = requirements_verification_results
+                                    break
+                            else:
+                                result[CheckResults.Integrity] = False
+                                result[
+                                    CheckResults.IntegrityFailureCode] = f"Tax Credit have requirements, but requirements is not a dictionary."
+                                break
+                        else:
+                            result[CheckResults.Integrity] = False
+                            result[
+                                CheckResults.IntegrityFailureCode] = f"Tax Credit have requirements, but are missing."
+                            break
+                else:
+                    result[CheckResults.Integrity] = False
+                    result[
+                        CheckResults.IntegrityFailureCode] = f"Tax Credit haveRequirements is either missing or not a bool."
+                    break
+            else:
+                result[CheckResults.Integrity] = False
+                result[
+                    CheckResults.IntegrityFailureCode] = f"TaxCreditConfiguration is not a dictionary."
+                break
+        else:
+            result[CheckResults.Integrity] = False
+            result[
+                CheckResults.IntegrityFailureCode] = f"TaxCreditConfiguration is missing."
+            break
     return result
 def verify_items(items:dict, break_for_ultra_safety=False):
     result = {
@@ -830,7 +1049,7 @@ def verify_items(items:dict, break_for_ultra_safety=False):
                     break
             carry_forward = item_data.get(ItemItemization.CarryForwardTimeLimit)
             if carry_forward:
-                if not isinstance(carry_forward, relativedelta) and not isinstance(carry_forward, datetime.datetime):
+                if not isinstance(carry_forward, relativedelta) and not isinstance(carry_forward, datetime):
                     result[CheckResults.IntegrityFailureCode] = f"Carry-forward is not of relativedelta or datetime class, instead {type(carry_forward)}"
                     integrity = False
                     break
@@ -1155,7 +1374,7 @@ standard_variables = {
             VerifierConfigurations.SupportsBackwardCompatibility: False,
         },
         Configurations.VariablesType: VariablesType.FederalVariables,
-        Configurations.LastUpdated: datetime.datetime(2025,3,18)
+        Configurations.LastUpdated: datetime(2025,3,18)
     },
     Variables.Taxes: {
         1: {
@@ -1411,28 +1630,28 @@ standard_variables = {
                     ItemItemization.CapsAppliedCount: 1,
                     ItemItemization.FeederSpecificCode: 0,
                     ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
-                    ItemItemization.DeferralSetOfRules: {
-                        DeferralRules.HaveUseItOrLoseItAnnualAllocation: True,
-                        DeferralRules.OneTimeUse: False,
-                        DeferralRules.AnnualAllocation: {
-                            Values.SmartValueA: DynamicContextBasedValue.XDeferral,
+                    ItemItemization.CarryOverSetOfRules: {
+                        CarryOverRules.HaveUseItOrLoseItAnnualAllocation: True,
+                        CarryOverRules.OneTimeUse: False,
+                        CarryOverRules.AnnualAllocation: {
+                            Values.SmartValueA: DynamicContextBasedValue.XCarryOver,
                             Values.SmartValueB: Decimal("0.2"),
                             Values.InterValuesOperation: InterValuesOperation.Multiplication
                         },
-                        DeferralRules.OffsetTargets: {
+                        CarryOverRules.OffsetTargets: {
                             1: {
-                                DeferralOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
-                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.DynamicOffsetLimit,
-                                DeferralOffsetTarget.OffsetLimit: {
+                                CarryOverOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
+                                CarryOverOffsetTarget.OffsetLimitType: CarryOverOffsetLimitType.DynamicOffsetLimit,
+                                CarryOverOffsetTarget.OffsetLimit: {
                                     Values.SmartValueA: VPerson.VCapitalGain,
                                     Values.SmartValueB: Decimal("0.2"),
                                     Values.InterValuesOperation: InterValuesOperation.Multiplication
                                 },
                             },
                             2: {
-                                DeferralOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
-                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.FixedOffsetLimit,
-                                DeferralOffsetTarget.OffsetLimit: Money(Decimal("300000")),
+                                CarryOverOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
+                                CarryOverOffsetTarget.OffsetLimitType: CarryOverOffsetLimitType.FixedOffsetLimit,
+                                CarryOverOffsetTarget.OffsetLimit: Money(Decimal("300000")),
                             },
                         },
                     } ,
@@ -1453,28 +1672,28 @@ standard_variables = {
                     ItemItemization.FeederSpecificCode: 1,
                     ItemItemization.CapsAppliedCount: 1,
                     ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
-                    ItemItemization.DeferralSetOfRules: {
-                        DeferralRules.HaveUseItOrLoseItAnnualAllocation: True,
-                        DeferralRules.OneTimeUse: False,
-                        DeferralRules.AnnualAllocation: {
-                            Values.SmartValueA: DynamicContextBasedValue.XDeferral,
+                    ItemItemization.CarryOverSetOfRules: {
+                        CarryOverRules.HaveUseItOrLoseItAnnualAllocation: True,
+                        CarryOverRules.OneTimeUse: False,
+                        CarryOverRules.AnnualAllocation: {
+                            Values.SmartValueA: DynamicContextBasedValue.XCarryOver,
                             Values.SmartValueB: Decimal("0.2"),
                             Values.InterValuesOperation: InterValuesOperation.Multiplication
                         },
-                        DeferralRules.OffsetTargets: {
+                        CarryOverRules.OffsetTargets: {
                             1: {
-                                DeferralOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
-                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.DynamicOffsetLimit,
-                                DeferralOffsetTarget.OffsetLimit: {
+                                CarryOverOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
+                                CarryOverOffsetTarget.OffsetLimitType: CarryOverOffsetLimitType.DynamicOffsetLimit,
+                                CarryOverOffsetTarget.OffsetLimit: {
                                     Values.SmartValueA: VPerson.VCapitalGain,
                                     Values.SmartValueB: Decimal("0.2"),
                                     Values.InterValuesOperation: InterValuesOperation.Multiplication
                                 },
                             },
                             2: {
-                                DeferralOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
-                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.FixedOffsetLimit,
-                                DeferralOffsetTarget.OffsetLimit: Money(Decimal("300000")),
+                                CarryOverOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
+                                CarryOverOffsetTarget.OffsetLimitType: CarryOverOffsetLimitType.FixedOffsetLimit,
+                                CarryOverOffsetTarget.OffsetLimit: Money(Decimal("300000")),
                             },
                         },
                     },
@@ -1495,28 +1714,28 @@ standard_variables = {
                     ItemItemization.ReceiverCode: "Donations",
                     ItemItemization.FeederSpecificCode: 2,
                     ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
-                    ItemItemization.DeferralSetOfRules: {
-                        DeferralRules.HaveUseItOrLoseItAnnualAllocation: True,
-                        DeferralRules.OneTimeUse: False,
-                        DeferralRules.AnnualAllocation: {
-                            Values.SmartValueA: DynamicContextBasedValue.XDeferral,
+                    ItemItemization.CarryOverSetOfRules: {
+                        CarryOverRules.HaveUseItOrLoseItAnnualAllocation: True,
+                        CarryOverRules.OneTimeUse: False,
+                        CarryOverRules.AnnualAllocation: {
+                            Values.SmartValueA: DynamicContextBasedValue.XCarryOver,
                             Values.SmartValueB: Decimal("0.2"),
                             Values.InterValuesOperation: InterValuesOperation.Multiplication
                         },
-                        DeferralRules.OffsetTargets: {
+                        CarryOverRules.OffsetTargets: {
                             1: {
-                                DeferralOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
-                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.DynamicOffsetLimit,
-                                DeferralOffsetTarget.OffsetLimit: {
+                                CarryOverOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
+                                CarryOverOffsetTarget.OffsetLimitType: CarryOverOffsetLimitType.DynamicOffsetLimit,
+                                CarryOverOffsetTarget.OffsetLimit: {
                                     Values.SmartValueA: VPerson.VCapitalGain,
                                     Values.SmartValueB: Decimal("0.2"),
                                     Values.InterValuesOperation: InterValuesOperation.Multiplication
                                 },
                             },
                             2: {
-                                DeferralOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
-                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.FixedOffsetLimit,
-                                DeferralOffsetTarget.OffsetLimit: Money(Decimal("300000")),
+                                CarryOverOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
+                                CarryOverOffsetTarget.OffsetLimitType: CarryOverOffsetLimitType.FixedOffsetLimit,
+                                CarryOverOffsetTarget.OffsetLimit: Money(Decimal("300000")),
                             },
                         },
                     },
@@ -1538,28 +1757,28 @@ standard_variables = {
                     ItemItemization.FeederSpecificCode: 3,
                     ItemItemization.CapsAppliedCount: 1,
                     ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
-                    ItemItemization.DeferralSetOfRules: {
-                        DeferralRules.HaveUseItOrLoseItAnnualAllocation: True,
-                        DeferralRules.OneTimeUse: False,
-                        DeferralRules.AnnualAllocation: {
-                            Values.SmartValueA: DynamicContextBasedValue.XDeferral,
+                    ItemItemization.CarryOverSetOfRules: {
+                        CarryOverRules.HaveUseItOrLoseItAnnualAllocation: True,
+                        CarryOverRules.OneTimeUse: False,
+                        CarryOverRules.AnnualAllocation: {
+                            Values.SmartValueA: DynamicContextBasedValue.XCarryOver,
                             Values.SmartValueB: Decimal("0.2"),
                             Values.InterValuesOperation: InterValuesOperation.Multiplication
                         },
-                        DeferralRules.OffsetTargets: {
+                        CarryOverRules.OffsetTargets: {
                             1: {
-                                DeferralOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
-                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.DynamicOffsetLimit,
-                                DeferralOffsetTarget.OffsetLimit: {
+                                CarryOverOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
+                                CarryOverOffsetTarget.OffsetLimitType: CarryOverOffsetLimitType.DynamicOffsetLimit,
+                                CarryOverOffsetTarget.OffsetLimit: {
                                     Values.SmartValueA: VPerson.VCapitalGain,
                                     Values.SmartValueB: Decimal("0.2"),
                                     Values.InterValuesOperation: InterValuesOperation.Multiplication
                                 },
                             },
                             2: {
-                                DeferralOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
-                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.FixedOffsetLimit,
-                                DeferralOffsetTarget.OffsetLimit: Money(Decimal("300000")),
+                                CarryOverOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
+                                CarryOverOffsetTarget.OffsetLimitType: CarryOverOffsetLimitType.FixedOffsetLimit,
+                                CarryOverOffsetTarget.OffsetLimit: Money(Decimal("300000")),
                             },
                         },
                     },
@@ -1580,28 +1799,28 @@ standard_variables = {
                     ItemItemization.FeederSpecificCode: 4,
                     ItemItemization.CapsAppliedCount: 1,
                     ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
-                    ItemItemization.DeferralSetOfRules: {
-                        DeferralRules.HaveUseItOrLoseItAnnualAllocation: True,
-                        DeferralRules.OneTimeUse: False,
-                        DeferralRules.AnnualAllocation: {
-                            Values.SmartValueA: DynamicContextBasedValue.XDeferral,
+                    ItemItemization.CarryOverSetOfRules: {
+                        CarryOverRules.HaveUseItOrLoseItAnnualAllocation: True,
+                        CarryOverRules.OneTimeUse: False,
+                        CarryOverRules.AnnualAllocation: {
+                            Values.SmartValueA: DynamicContextBasedValue.XCarryOver,
                             Values.SmartValueB: Decimal("0.2"),
                             Values.InterValuesOperation: InterValuesOperation.Multiplication
                         },
-                        DeferralRules.OffsetTargets: {
+                        CarryOverRules.OffsetTargets: {
                             1: {
-                                DeferralOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
-                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.DynamicOffsetLimit,
-                                DeferralOffsetTarget.OffsetLimit: {
+                                CarryOverOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
+                                CarryOverOffsetTarget.OffsetLimitType: CarryOverOffsetLimitType.DynamicOffsetLimit,
+                                CarryOverOffsetTarget.OffsetLimit: {
                                     Values.SmartValueA: VPerson.VCapitalGain,
                                     Values.SmartValueB: Decimal("0.2"),
                                     Values.InterValuesOperation: InterValuesOperation.Multiplication
                                 },
                             },
                             2: {
-                                DeferralOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
-                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.FixedOffsetLimit,
-                                DeferralOffsetTarget.OffsetLimit: Money(Decimal("300000")),
+                                CarryOverOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
+                                CarryOverOffsetTarget.OffsetLimitType: CarryOverOffsetLimitType.FixedOffsetLimit,
+                                CarryOverOffsetTarget.OffsetLimit: Money(Decimal("300000")),
                             },
                         },
                     },
@@ -1619,29 +1838,29 @@ standard_variables = {
                     ItemItemization.DeductibleValue: VPerson.VInvestmentInterestExpense,
                     ItemItemization.ItemItemizationType: ItemItemizationType.Direct,
                     ItemItemization.CapsAppliedCount: 1,
-                    ItemItemization.CarryForwardTimeLimit: datetime.datetime.max,
-                    ItemItemization.DeferralSetOfRules: {
-                        DeferralRules.HaveUseItOrLoseItAnnualAllocation: True,
-                        DeferralRules.OneTimeUse: False,
-                        DeferralRules.AnnualAllocation: {
-                            Values.SmartValueA: DynamicContextBasedValue.XDeferral,
+                    ItemItemization.CarryForwardTimeLimit: datetime.max,
+                    ItemItemization.CarryOverSetOfRules: {
+                        CarryOverRules.HaveUseItOrLoseItAnnualAllocation: True,
+                        CarryOverRules.OneTimeUse: False,
+                        CarryOverRules.AnnualAllocation: {
+                            Values.SmartValueA: DynamicContextBasedValue.XCarryOver,
                             Values.SmartValueB: Decimal("0.2"),
                             Values.InterValuesOperation: InterValuesOperation.Multiplication
                         },
-                        DeferralRules.OffsetTargets: {
+                        CarryOverRules.OffsetTargets: {
                             1: {
-                                DeferralOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
-                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.DynamicOffsetLimit,
-                                DeferralOffsetTarget.OffsetLimit: {
+                                CarryOverOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
+                                CarryOverOffsetTarget.OffsetLimitType: CarryOverOffsetLimitType.DynamicOffsetLimit,
+                                CarryOverOffsetTarget.OffsetLimit: {
                                     Values.SmartValueA: VPerson.VCapitalGain,
                                     Values.SmartValueB: Decimal("0.2"),
                                     Values.InterValuesOperation: InterValuesOperation.Multiplication
                                 },
                             },
                             2: {
-                                DeferralOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
-                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.FixedOffsetLimit,
-                                DeferralOffsetTarget.OffsetLimit: Money(Decimal("300000")),
+                                CarryOverOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
+                                CarryOverOffsetTarget.OffsetLimitType: CarryOverOffsetLimitType.FixedOffsetLimit,
+                                CarryOverOffsetTarget.OffsetLimit: Money(Decimal("300000")),
                             },
                         },
                     },
@@ -1660,28 +1879,28 @@ standard_variables = {
                     ItemItemization.HaveBaseAGIDependentFeeders: True,
                     ItemItemization.CapsAppliedCount: 1,
                     ItemItemization.CarryForwardTimeLimit: relativedelta(years=5),
-                    ItemItemization.DeferralSetOfRules: {
-                        DeferralRules.HaveUseItOrLoseItAnnualAllocation: True,
-                        DeferralRules.OneTimeUse: False,
-                        DeferralRules.AnnualAllocation: {
-                            Values.SmartValueA: DynamicContextBasedValue.XDeferral,
+                    ItemItemization.CarryOverSetOfRules: {
+                        CarryOverRules.HaveUseItOrLoseItAnnualAllocation: True,
+                        CarryOverRules.OneTimeUse: False,
+                        CarryOverRules.AnnualAllocation: {
+                            Values.SmartValueA: DynamicContextBasedValue.XCarryOver,
                             Values.SmartValueB: Decimal("0.2"),
                             Values.InterValuesOperation: InterValuesOperation.Multiplication
                         },
-                        DeferralRules.OffsetTargets: {
+                        CarryOverRules.OffsetTargets: {
                             1: {
-                                DeferralOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
-                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.DynamicOffsetLimit,
-                                DeferralOffsetTarget.OffsetLimit: {
+                                CarryOverOffsetTarget.OffsetTarget: VPerson.VCapitalGain,
+                                CarryOverOffsetTarget.OffsetLimitType: CarryOverOffsetLimitType.DynamicOffsetLimit,
+                                CarryOverOffsetTarget.OffsetLimit: {
                                     Values.SmartValueA: VPerson.VCapitalGain,
                                     Values.SmartValueB: Decimal("0.2"),
                                     Values.InterValuesOperation: InterValuesOperation.Multiplication
                                 },
                             },
                             2: {
-                                DeferralOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
-                                DeferralOffsetTarget.OffsetLimitType: DeferralOffsetLimitType.FixedOffsetLimit,
-                                DeferralOffsetTarget.OffsetLimit: Money(Decimal("300000")),
+                                CarryOverOffsetTarget.OffsetTarget: VPerson.VFederalFinalAGI,
+                                CarryOverOffsetTarget.OffsetLimitType: CarryOverOffsetLimitType.FixedOffsetLimit,
+                                CarryOverOffsetTarget.OffsetLimit: Money(Decimal("300000")),
                             },
                         },
                     },
@@ -1720,7 +1939,7 @@ standard_variables = {
                     Configurations.TaxCreditName: "Child Tax Credit",
                     Configurations.HaveRequirements: True,
                     Configurations.TaxCreditValueType: ValueType.FixedValue,
-                    Configurations.TaxCreditValue: TaxCredit(Decimal("1000000"))
+                    Configurations.TaxCreditValue: TaxCredit(Decimal("1000000")),
                 },
             },
         },
@@ -1747,7 +1966,7 @@ california_variables = {
             VerifierConfigurations.SupportsBackwardCompatibility: False,
         },
         Configurations.VariablesType: VariablesType.StateVariables,
-        Configurations.LastUpdated: datetime.datetime(2025, 3, 18)
+        Configurations.LastUpdated: datetime(2025, 3, 18)
     },
     Variables.Taxes: {
         1: {
@@ -1914,7 +2133,7 @@ new_york_variables = {
             VerifierConfigurations.SupportsBackwardCompatibility: False,
         },
         Configurations.VariablesType: VariablesType.StateVariables,
-        Configurations.LastUpdated: datetime.datetime(2025, 3, 31)
+        Configurations.LastUpdated: datetime(2025, 3, 31)
     },
     Variables.Taxes: {
         1: {
@@ -2048,7 +2267,7 @@ default_variables_index = {
 class Person:
     def __init__(self, first_name:str="", last_name:str="", marital_status:MaritalStatus=MaritalStatus.UnSpecified,
                  age:int=0, income:Money=Money(Decimal("0")), state:State=State.UnSpecifiedState,
-                 city:City=City.UnSpecifiedCity,
+                 city:City=City.UnSpecifiedCity, carry_overs=None,
                  attributes=None, variables_index=None, preference_settings=None):
         if attributes is None:
             attributes = {}
@@ -2056,6 +2275,9 @@ class Person:
             variables_index = default_variables_index
         if preference_settings is None:
             preference_settings = standard_user_preference
+        if carry_overs is None:
+            carry_overs = {}
+        self.carry_overs = carry_overs
         self.first = first_name
         self.last = last_name
         self.status = marital_status
@@ -2251,13 +2473,17 @@ class Person:
         else:
             return Money()
 
+    @property
+    def all_taxes(self):
+        return
+
 all_calculations = ["calculate_pre_base_agi_itemization", "calculate_post_base_agi_itemization",
            "calculate_item_directly", "calculate_caps", "calculate_cap", "calculate_smart_values",
            "calculate_smart_values_from_dictionary", "calculate_tax_benefits", "calculate_exemptions",
            "calculate_tax_benefits_when_standardized", "calculate_tax_benefits_when_itemizing",
            "calculate_tax", "find_bracket", "apply_rate", "adjust_tax_value_for_its_caps",
            "calculate_tax_cap", "calculate_tax_caps", "vperson_to_person_attribute",
-           "vperson_to_person_attributes", "calculate_future_deferrals", "calculate_tax_credits", "calculate_current_deferrals"]
+           "vperson_to_person_attributes", "calculate_future_carry_overs", "calculate_tax_credits"]
 
 
 # Calculations
@@ -2472,7 +2698,7 @@ def calculate_pre_base_agi_itemization(items:dict, person, converter=None):
                 accumulated_from_receivers += calculate_item_directly(item, person, converter, True, total_received)
     return accumulated_directs+accumulated_from_receivers
 def calculate_post_base_agi_itemization(items:dict, person, converter):
-    deferrals_ledger = {}
+    carry_overs_ledger = {}
     accumulated_directs = Money()
     accumulated_from_receivers = Money()
     ledger = {}
@@ -2486,11 +2712,11 @@ def calculate_post_base_agi_itemization(items:dict, person, converter):
                     expiration = datetime.now() + carry_forward
                 else:
                     expiration = carry_forward
-                deferral_set_of_rules = item[ItemItemization.DeferralSetOfRules]
+                deferral_set_of_rules = item[ItemItemization.CarryOverSetOfRules]
                 initial_itemization_value = vperson_to_person_attribute(item[ItemItemization.DeductibleValue], person, converter)
                 deferral_value = initial_itemization_value.amount - adjusted_itemization_value.amount
-                item_deferral = Deferral(deferral_value, datetime.today(), expiration, deferral_set_of_rules)
-                deferrals_ledger[item_name] = item_deferral
+                item_deferral = CarryOver(deferral_value, datetime.today(), expiration, deferral_set_of_rules)
+                carry_overs_ledger[item_name] = item_deferral
             if item_type == ItemItemizationType.Direct:
                 accumulated_directs += adjusted_itemization_value
             elif item_type == ItemItemizationType.Feeder:
@@ -2513,20 +2739,20 @@ def calculate_post_base_agi_itemization(items:dict, person, converter):
                     expiration = datetime.now() + carry_forward
                 else:
                     expiration = carry_forward
-                deferral_set_of_rules = item[ItemItemization.DeferralSetOfRules]
+                deferral_set_of_rules = item[ItemItemization.CarryOverSetOfRules]
                 deferral_value = total_received.amount - adjusted_itemization_value.amount
-                item_deferral = Deferral(deferral_value, datetime.today(), expiration, deferral_set_of_rules)
-                deferrals_ledger[item_name] = item_deferral
+                item_deferral = CarryOver(deferral_value, datetime.today(), expiration, deferral_set_of_rules)
+                carry_overs_ledger[item_name] = item_deferral
     keys_to_remove = []
-    for deferral_name, deferral in deferrals_ledger.items():
+    for carry_over_name, deferral in carry_overs_ledger.items():
         if deferral.amount == Decimal("0"):
-            keys_to_remove.append(deferral_name)
+            keys_to_remove.append(carry_over_name)
     for key in keys_to_remove:
-        deferrals_ledger.pop(key)
-    return accumulated_directs + accumulated_from_receivers, deferrals_ledger
-def calculate_future_deferrals(items:dict, person, converter):
-    _ , deferrals_ledger = calculate_post_base_agi_itemization(items, person, converter)
-    return deferrals_ledger
+        carry_overs_ledger.pop(key)
+    return accumulated_directs + accumulated_from_receivers, carry_overs_ledger
+def calculate_future_carry_overs(items:dict, person, converter):
+    _ , carry_overs_ledger = calculate_post_base_agi_itemization(items, person, converter)
+    return carry_overs_ledger
 def calculate_item_directly(item:dict, person, converter, receiver=False, total_received=None):
     if ItemItemization.ItemizationCaps in item:
         caps = calculate_caps(item[ItemItemization.ItemizationCaps], person, converter)
@@ -2620,7 +2846,7 @@ def calculate_tax_benefits(person, variables, converter):
             return itemized, Deduction.ItemizedDeduction
 def calculate_exemptions(person, variables):
     return variables[Variables.TaxBenefits][TaxBenefits.Exemption][person.status]
-def calculate_current_deferrals(person):
+def calculate_carry_overs_from_person_dot_carry_overs(person):
     print(person)
 def calculate_tax_credits(person, variables, converter):
     accumulated_tax_credits = TaxCredit()
@@ -2868,7 +3094,7 @@ def str_to_object(string, enums_list:list):
                 pass
         elif "ThisIsADateTimeObject" in string:
             the_iso_format = string.replace("ThisIsADateTimeObject", "")
-            return datetime.datetime.fromisoformat(the_iso_format)
+            return datetime.fromisoformat(the_iso_format)
         elif string.isdigit():
             return int(string)
         for an_enum in enums_list:
@@ -2932,7 +3158,7 @@ def smart_serializer(obj):
         relativedelta_data = obj.__dict__.copy()
         relativedelta_data["ThisKeyIsReservedForTypesOnly"] = "relativedelta"
         return relativedelta_data
-    elif isinstance(obj, datetime.datetime):
+    elif isinstance(obj, datetime):
         the_iso_format = obj.isoformat()
         return f'''ThisIsADateTimeObject{the_iso_format}'''
     else:
@@ -2949,7 +3175,16 @@ def import_variables(json_file_name:str):
 
 
 
-
+def sort_taxes_into_standard_and_custom(taxes:dict):
+    standard = {}
+    custom = {}
+    for tax_name, tax_data in taxes.items():
+        tax_name_type = tax_data[TaxVariables.TaxConfigurations][Configurations.TaxNameType]
+        if tax_name_type == NameType.StandardName:
+            standard[tax_name] = tax_data
+        elif tax_name_type == NameType.CustomName:
+            custom[tax_name] = tax_data
+    return standard, custom
 def vperson_dictionary_to_person_attribute(variables:dict, person:Person, converter):
     for key, its_value in variables.items():
         if isinstance(its_value, VPerson):
@@ -2964,7 +3199,7 @@ def apply_raw_deductibles(dictionary:dict, person:Person, converter):
         elif key == ItemItemization.DeductibleValue:
             dictionary[key] = vperson_to_person_attribute(its_value, person, converter)
     return dictionary
-def process_taxes(taxes:dict, person:Person, converter:dict):
+def process_taxes_return_for_user(taxes:dict, person:Person, converter:dict):
     taxes_output = {}
     for tax in taxes.values():
         tax_name = str(tax[TaxVariables.TaxConfigurations][Configurations.TaxName]).replace("StandardTaxName.", "")
@@ -2979,7 +3214,21 @@ def process_taxes(taxes:dict, person:Person, converter:dict):
             tax_value = calculate_tax(tax, person, converter)
         taxes_output[tax_name] = tax_value
     return taxes_output
-
+def process_taxes(taxes:dict, person:Person, converter:dict):
+    taxes_output = {}
+    for tax in taxes.values():
+        tax_name = tax[TaxVariables.TaxConfigurations][Configurations.TaxName]
+        have_requirements = tax[TaxVariables.TaxConfigurations][Configurations.HaveRequirements]
+        if have_requirements:
+            requirements = tax[TaxVariables.TaxRequirements]
+            if meets_requirements_according_to_its_rules(requirements, person, converter):
+                tax_value = calculate_tax(tax, person, converter)
+            else:
+                tax_value = None
+        else:
+            tax_value = calculate_tax(tax, person, converter)
+        taxes_output[tax_name] = tax_value
+    return taxes_output
 if __name__ == '__main__':
     p = Person()
     p.status = MaritalStatus.Single
@@ -3016,7 +3265,17 @@ if __name__ == '__main__':
                 }
             }
     # print(nested_dictionary_reader(verify_variables_viability_and_integrity(standard_variables)))
-    print(nested_dictionary_reader(verify_variables_viability_and_integrity(standard_variables)))
+    # noinspection PyTypeChecker
+    some_taxes = california_variables[Variables.Taxes]
+
+    standard_ones, custom_ones = sort_taxes_into_standard_and_custom(some_taxes)
+    print(nested_dictionary_reader(process_taxes(standard_ones,p,vperson_to_person_attributes)))
+    print("\n\n\n\n\n")
+    print(nested_dictionary_reader(process_taxes(custom_ones,p,vperson_to_person_attributes)))
+
+    # print(nested_dictionary_reader(process_taxes(some_taxes, p, vperson_to_person_attributes)))
+
+    
     # print(nested_dictionary_reader(process_taxes(california_variables[Variables.Taxes], p, vperson_to_person_attributes)))
     # p.state = State.NewYork
     # print(nested_dictionary_reader(process_taxes(standard_variables[Variables.Taxes], p, vperson_to_person_attributes)))
@@ -3031,5 +3290,5 @@ if __name__ == '__main__':
     #     print(f"Key: {k}, Type: {type(k)}")
     # print(nested_dictionary_reader(verify_variables_viability_and_integrity(standard_variables)))
     # items = standard_variables[Variables.TaxBenefits][TaxBenefits.Deduction][Deduction.Itemization]
-    # print(calculate_future_deferrals(items, p, vperson_to_person_attributes))
+    # print(calculate_future_carry_overs(items, p, vperson_to_person_attributes))
     # print(nested_dictionary_reader(process_taxes(standard_variables[Variables.Taxes], p, vperson_to_person_attributes)))
