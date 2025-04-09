@@ -1,9 +1,63 @@
+__all__ = [
+    "Currency", "PaymentStatus", "MaritalStatus", "State", "Variables",
+    "Configurations", "TaxBaseType", "VariablesType", "TaxBase", "TaxationType",
+    "TaxVariables", "NameType", "TaxCap", "TaxLimitType", "TaxCapType",
+    "TaxBenefits", "Deduction", "VerifierConfigurations", "AdjustedIncomeSource",
+    "Itemization", "ItemItemization", "ItemItemizationType", "ItemizationCapType",
+    "ItemizationPhase", "Values", "VPerson", "InterValuesOperation", "LimitType",
+    "StandardTaxName", "LocalIndex", "AGIType", "Preference", "SafetyPreference",
+    "TaxPreference", "PreferredDeductionType", "Jurisdiction", "CheckResults",
+    "Requirement", "ComparisonOperator", "RequirementsConfiguration",
+    "RequirementsToMeet", "CustomEnum", "all_enums", "CarryOverRules", "CarryOverOffsetTarget",
+    "CarryOverOffsetLimitType", "DynamicContextBasedValue", "TaxCreditData", "ValueType",
+    "StandardTaxCreditName", "OffsetTargetType"
+]
+
 from enum import Enum
 class CustomEnum(Enum):
     def __str__(self):
         return self.name
+class Currency(str, CustomEnum):
+    USD = "USD"
+    EUR = "EUR"
+    JPY = "JPY"
+    GBP = "GBP"
+    AUD = "AUD"
+    CAD = "CAD"
+    CHF = "CHF"
+    CNY = "CNY"
+    SEK = "SEK"
+    NZD = "NZD"
+    MXN = "MXN"
+    SGD = "SGD"
+    HKD = "HKD"
+    NOK = "NOK"
+    KRW = "KRW"
+    TRY = "TRY"
+    INR = "INR"
+    BRL = "BRL"
+    ZAR = "ZAR"
+    RUB = "RUB"
+    def __str__(self):
+        return self.name
+class PaymentStatus(str, CustomEnum):
+    Paid = "Paid"
+    UnPaid = "UnPaid"
+    Capitalized = "Capitalized"
+    NotSpecified = "NotSpecified"
+    PartiallyPaid = "PartiallyPaid"
+    InterestOnly = "InterestOnly"
+    def __str__(self):
+        return self.name
+class MaritalStatus(str, CustomEnum):
+    Single = "Single"
+    MarriedNonJoint = "MarriedNonJoint"
+    MarriedJoint = "MarriedJoint"
+    UnSpecified = "UnSpecified"
+    def __str__(self):
+        return self.name
 class State(str, CustomEnum):
-    CityVariablesIndex = "CityVariablesHeader"
+    CityVariablesIndex = "CityVariablesIndex"
     UnSpecifiedState = "UnSpecifiedState"
     Alabama = "Alabama"
     Alaska = "Alaska"
@@ -57,7 +111,7 @@ class State(str, CustomEnum):
     Wyoming = "Wyoming"
 class Variables(str, CustomEnum):
     Configurations = "Configurations"
-    Taxes = "Data"
+    Taxes = "Taxes"
     TaxBenefits = "TaxBenefits"
 class Configurations(str, CustomEnum):
     VariablesType = "VariablesType"
@@ -73,7 +127,11 @@ class Configurations(str, CustomEnum):
     TheFlatRate = "TheFlatRate"
     TheFixedAmount = "TheFixedAmount"
     HaveCap = "HaveCap"
-    TaxHaveRequirements = "TaxHaveRequirements"
+    HaveRequirements = "HaveRequirements"
+    TaxCreditNameType = "TaxCreditNameType"
+    TaxCreditName = "TaxCreditName"
+    TaxCreditValue = "TaxCreditValue"
+    TaxCreditValueType = "TaxCreditValueType"
 class TaxBaseType(str, CustomEnum):
     VPersonBase = "VPersonBase"
     CustomBase = "CustomBase"
@@ -97,7 +155,7 @@ class TaxVariables(str, CustomEnum):
     TaxBenefits = "TaxBenefits"
     TaxCaps = "TaxCaps"
     TaxRequirements = "TaxRequirements"
-class TaxNameType(str, CustomEnum):
+class NameType(str, CustomEnum):
     StandardName = "StandardName"
     CustomName = "CustomName"
 class TaxCap(str, CustomEnum):
@@ -112,8 +170,8 @@ class TaxCapType(str, CustomEnum):
 class TaxBenefits(str, CustomEnum):
     Deduction = "Deduction"
     Exemption = "Exemption"
-    Credit = "Credit"
-    Deferral = "Deferral"
+    TaxCredit = "TaxCredit"
+    CarryOver = "CarryOver"
 class Deduction(str, CustomEnum):
     Itemization = "Itemization"
     StandardDeduction = "StandardDeduction"
@@ -158,6 +216,7 @@ class ItemItemization(str, CustomEnum):
     ReceivingCode = "ReceivingCode"
     HaveBaseAGIDependentFeeders = "HaveBaseAGIDependentFeeders"
     FeederSpecificCode = "FeederSpecificCode"
+    CarryOverSetOfRules = "CarryOverSetOfRules"
 class ItemItemizationType(str, CustomEnum):
     Direct = "Direct"
     Feeder = "Feeder"
@@ -185,6 +244,10 @@ class Values(str, CustomEnum):
     InterValuesOperation = "InterValuesOperation"
 class VPerson(str, CustomEnum):
     VStatus = "VStatus"
+    VState = 'VState'
+    VCity = "VCity"
+    VPreference = "VPreference"
+    VVariablesIndex = "VVariablesIndex"
     VGrossIncome = "VGrossIncome"
     VTotalInvestmentInterestExpense = "VTotalInvestmentInterestExpense"
     VTotalDebtBasedInvestmentEarnings = "VTotalDebtBasedInvestmentEarnings"
@@ -217,6 +280,9 @@ class VPerson(str, CustomEnum):
     VPrivateCapitalGainsDonations = "VPrivateCapitalGainsDonations"
     VInvestmentInterestExpense = "VInvestmentInterestExpense"
     VSALT = "VSALT"
+    VOwnedVehiclesCount = "VOwnedVehiclesCount"
+    VOwnedVehiclesPrice = "VOwnedVehiclesPrice"
+    VStandardTax = "VStandardTax"
 
     VCurrentBaseAGI = "VCurrentBaseAGI"
     VCurrentFinalAGI = "VCurrentFinalAGI"
@@ -232,6 +298,7 @@ class VPerson(str, CustomEnum):
 
     VLocalBaseAGI = "VLocalBaseAGI"
     VLocalFinalAGI = "VLocalFinalAGI"
+
 class InterValuesOperation(str, CustomEnum):
     Addition = "Addition"
     Subtraction = "Subtraction"
@@ -297,7 +364,7 @@ class Preference(str, CustomEnum):
     TaxPreference = "TaxPreference"
     SafetyPreference = "SafetyPreference"
 class SafetyPreference(str, CustomEnum):
-    PreferFollowingUltraSafety = "PreferFollowingSafety"
+    PreferFollowingUltraSafety = "PreferFollowingUltraSafety"
     PreferFollowingSafety = "PreferFollowingSafety"
     PreferIgnoringSafety = "PreferIgnoringSafety"
     AlertForSafety = "AlertForSafety"
@@ -322,11 +389,11 @@ class CheckResults(str, CustomEnum):
     Safety = "Safety"
     UltraSafety = "UltraSafety"
     SafetyFailureCode = "SafetyFailureCode"
-class TaxRequirement(str, CustomEnum):
+class Requirement(str, CustomEnum):
     ValueInQuestion = "ValueInQuestion"
     ComparisonValue = "ComparisonValue"
     ComparisonOperator = "ComparisonOperator"
-    TaxRequirementsConfiguration = "RequirementsConfiguration"
+    RequirementsConfiguration = "RequirementsConfiguration"
 class ComparisonOperator(str, CustomEnum):
     Equal = "Equal"
     NotEqual = "NotEqual"
@@ -334,12 +401,74 @@ class ComparisonOperator(str, CustomEnum):
     LessThan = "LessThan"
     GreaterOrEqual = "GreaterOrEqual"
     LessOrEqual = "LessOrEqual"
-class TaxRequirementsConfiguration(str, CustomEnum):
+class RequirementsConfiguration(str, CustomEnum):
     RequirementsToMeet = "RequirementsToMeet"
     SpecifiedRequirements = "SpecifiedRequirements"
     SpecifiedRequirementsCount = "SpecifiedRequirementsCount"
+    RequirementNote = "RequirementNote"
 class RequirementsToMeet(str, CustomEnum):
     MustMeetAll = "MustMeetAll"
     MustMeetAny = "MustMeetAny"
     MustMeetAnyOf = "MustMeetAnyOf"
     MustMeetSpecificCount = "MustMeetSpecificCount"
+class CarryOverRules(str, CustomEnum):
+    OffsetTargets = "OffsetTargets"
+    HaveUseItOrLoseItAnnualAllocation = "HaveUseItOrLoseItAnnualAllocation"
+    AnnualAllocation = "AnnualAllocation"
+    OneTimeUse = "OneTimeUse"
+class CarryOverOffsetTarget(str, CustomEnum):
+    OffsetTargetType = "OffsetTargetType"
+    OffsetTarget = "OffsetTarget"
+    OffsetLimitType = "OffsetLimitType"
+    OffsetLimit = "OffsetLimit"
+class OffsetTargetType(str, CustomEnum):
+    VPerson = "VPerson"
+    StandardTax = "StandardTax"
+    CustomTax = "CustomTax"
+    CustomPersonAttribute = "CustomPersonAttribute"
+class CarryOverOffsetLimitType (str, CustomEnum):
+    DynamicOffsetLimit = "DynamicOffsetLimit"
+    FixedOffsetLimit = "FixedOffsetLimit"
+class DynamicContextBasedValue(str, CustomEnum):
+    XCarryOver = "XCarryOver"
+class TaxCreditData(str, CustomEnum):
+    TaxCreditRequirements = "TaxCreditRequirements"
+    TaxCreditConfigurations = "TaxCreditConfigurations"
+class StandardTaxCreditName(str, CustomEnum):
+    EarnedIncomeTaxCredit = "EarnedIncomeTaxCredit"
+    ChildTaxCredit = "ChildTaxCredit"
+    AmericanOpportunityTaxCredit = "AmericanOpportunityTaxCredit"
+    LifetimeLearningCredit = "LifetimeLearningCredit"
+    ChildAndDependentCareCredit = "ChildAndDependentCareCredit"
+    SaversCredit = "SaversCredit"
+    PremiumTaxCredit = "PremiumTaxCredit"
+    ForeignTaxCredit = "ForeignTaxCredit"
+    ResidentialEnergyEfficientPropertyCredit = "ResidentialEnergyEfficientPropertyCredit"
+    AdoptionCredit = "AdoptionCredit"
+    WorkOpportunityTaxCredit = "WorkOpportunityTaxCredit"
+    ResearchAndDevelopmentTaxCredit = "ResearchAndDevelopmentTaxCredit"
+    DisabledAccessCredit = "DisabledAccessCredit"
+    EmployerProvidedChildcareCredit = "EmployerProvidedChildcareCredit"
+class ValueType(str, CustomEnum):
+    FixedValue = "FixedValue"
+    DynamicValue = "DynamicValue"
+    SmartValue = "SmartValue"
+
+all_enums = [
+    Currency, PaymentStatus, MaritalStatus, State, Variables, Configurations,
+    TaxBaseType, VariablesType, TaxBase, TaxationType, TaxVariables, NameType,
+    TaxCap, TaxLimitType, TaxCapType, TaxBenefits, Deduction, VerifierConfigurations,
+    AdjustedIncomeSource, Itemization, ItemItemization, ItemItemizationType,
+    ItemizationCapType, ItemizationPhase, Values, VPerson, InterValuesOperation,
+    LimitType, StandardTaxName, LocalIndex, AGIType, Preference, SafetyPreference,
+    TaxPreference, PreferredDeductionType, Jurisdiction, CheckResults, Requirement,
+    ComparisonOperator, RequirementsConfiguration, RequirementsToMeet, CustomEnum,
+    CarryOverRules, CarryOverOffsetTarget, CarryOverOffsetLimitType, DynamicContextBasedValue,
+    TaxCreditData, ValueType, StandardTaxCreditName, OffsetTargetType
+]
+
+if __name__ == '__main__':
+    for an_enum in all_enums:
+        for mem in an_enum:
+            if mem.name != mem:
+                print(mem)
