@@ -1,4 +1,4 @@
-# TaxiCalX
+# TaxiCalPro
 
 TaxiCalX is a modular and scalable tax calculation engine designed for handling **federal, state, and local taxes** efficiently. The system supports **progressive, flat, and fixed taxation** and allows for **custom tax deductions** with dynamic configurations.
 
