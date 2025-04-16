@@ -1,6 +1,6 @@
 # TaxiCalPro
 
-TaxiCalX is a modular and scalable tax calculation engine designed for handling **federal, state, and local taxes** efficiently. The system supports **progressive, flat, and fixed taxation** and allows for **custom tax deductions** with dynamic configurations.
+TaxiCalPro is a modular and scalable tax calculation engine designed for handling **federal, state, and local taxes** efficiently. The system supports **progressive, flat, and fixed taxation** and allows for **custom tax deductions** with dynamic configurations.
 
 ## 🚀 Features
 - **Fully Modular Tax Structure** – Easily add new tax jurisdictions (federal, state, city).
@@ -13,7 +13,7 @@ TaxiCalX is a modular and scalable tax calculation engine designed for handling 
 
 ## 📂 File Structure
 ```
-📂 TaxiCalX
+📂 TaxicalPro
  ├── CleanCoreLogic.py    # Core tax calculation logic
  ├── StandardVariablesFormat.txt # Data structure for tax variables
  ├── Classes.py           # Enum and class definitions
@@ -61,5 +61,5 @@ Licensed under **MIT License** – Open-source, free to use & modify.
 
 ---
 
-TaxiCalX is designed for **efficiency, modularity, and accuracy**—making tax calculations easier than ever. 🚀
+TaxicalPro is designed for **efficiency, modularity, and accuracy**—making tax calculations easier than ever. 🚀
 
